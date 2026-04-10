@@ -14,7 +14,7 @@ spec:
     helm:
       values: |
         # Replace with your GitHub config URL and PAT/GitHub App credentials.
-        githubConfigUrl: "https://github.com/willsbctm/vcluster-ephemeral-envs"
+        githubConfigUrl: "https://github.com/dusttostars/vcluster-ephemeral-envs"
         githubConfigSecret:
           github_token: "REPLACE_WITH_PAT"
         maxRunners: 5

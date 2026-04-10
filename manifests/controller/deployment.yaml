@@ -19,7 +19,7 @@ spec:
       serviceAccountName: cleanup-controller
       containers:
         - name: controller
-          image: ghcr.io/willsbctm/vcluster-ephemeral-envs/controller:latest
+          image: ghcr.io/dusttostars/vcluster-ephemeral-envs/controller:latest
           args:
             - --repo-path=/repo
             - --interval=60s
@@ -37,7 +37,7 @@ spec:
         - name: git-sync
           image: registry.k8s.io/git-sync/git-sync:v4.2.1
           args:
-            - --repo=https://github.com/willsbctm/vcluster-ephemeral-envs.git
+            - --repo=https://github.com/dusttostars/vcluster-ephemeral-envs.git
             - --root=/repo
             - --period=30s
             - --link=current

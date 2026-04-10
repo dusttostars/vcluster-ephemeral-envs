@@ -2,7 +2,7 @@
 set -euo pipefail
 
 GITHUB_PAT="${GITHUB_PAT:?Set GITHUB_PAT environment variable}"
-GITHUB_REPO="${GITHUB_REPO:-https://github.com/willsbctm/vcluster-ephemeral-envs}"
+GITHUB_REPO="${GITHUB_REPO:-https://github.com/dusttostars/vcluster-ephemeral-envs}"
 
 echo "==> Creating arc-runners secret with GitHub PAT..."
 kubectl create namespace arc-runners --dry-run=client -o yaml | kubectl apply -f -

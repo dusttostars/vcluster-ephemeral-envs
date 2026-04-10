@@ -1,8 +1,8 @@
 .PHONY: help setup setup-microk8s setup-argocd setup-arc build build-cli build-controller \
        tenant-create env-create env-delete docker-build docker-push
 
-REPO_URL ?= https://github.com/willsbctm/vcluster-ephemeral-envs.git
-REGISTRY ?= ghcr.io/willsbctm/vcluster-ephemeral-envs
+REPO_URL ?= https://github.com/dusttostars/vcluster-ephemeral-envs.git
+REGISTRY ?= ghcr.io/dusttostars/vcluster-ephemeral-envs
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | \

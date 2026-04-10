@@ -13,7 +13,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
-	"github.com/willsbctm/vcluster-ephemeral-envs/internal/cleanup"
+	"github.com/dusttostars/vcluster-ephemeral-envs/internal/cleanup"
 )
 
 func main() {

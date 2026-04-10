@@ -1,4 +1,4 @@
-module github.com/willsbctm/vcluster-ephemeral-envs
+module github.com/dusttostars/vcluster-ephemeral-envs
 
 go 1.22
 

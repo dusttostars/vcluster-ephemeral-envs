@@ -5,7 +5,7 @@ TENANT="${1:?Usage: create-tenant.sh <tenant-name> [max-cpu] [max-memory]}"
 MAX_CPU="${2:-4}"
 MAX_MEMORY="${3:-8Gi}"
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-REPO_URL="${REPO_URL:-https://github.com/willsbctm/vcluster-ephemeral-envs.git}"
+REPO_URL="${REPO_URL:-https://github.com/dusttostars/vcluster-ephemeral-envs.git}"
 
 NAMESPACE="tenant-${TENANT}"
 TARGET_DIR="${REPO_ROOT}/manifests/tenants/${TENANT}"

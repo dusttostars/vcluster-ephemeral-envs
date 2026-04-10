@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/willsbctm/vcluster-ephemeral-envs/internal/tenant"
-	"github.com/willsbctm/vcluster-ephemeral-envs/internal/vcluster"
+	"github.com/dusttostars/vcluster-ephemeral-envs/internal/tenant"
+	"github.com/dusttostars/vcluster-ephemeral-envs/internal/vcluster"
 )
 
 func main() {
