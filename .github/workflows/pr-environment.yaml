@@ -1,0 +1,66 @@
+name: PR Ephemeral Environment
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  create-env:
+    runs-on: self-hosted
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract branch info
+        id: branch
+        run: |
+          BRANCH="${{ github.head_ref }}"
+          ENV_NAME="${BRANCH//\//-}"
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+          echo "env_name=$ENV_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Determine tenant from label
+        id: tenant
+        run: |
+          # Default tenant; override with PR label "tenant:<name>"
+          TENANT="default"
+          LABELS='${{ toJSON(github.event.pull_request.labels.*.name) }}'
+          MATCH=$(echo "$LABELS" | grep -oP 'tenant:\K[^"]+' || true)
+          if [ -n "$MATCH" ]; then
+            TENANT="$MATCH"
+          fi
+          echo "tenant=$TENANT" >> "$GITHUB_OUTPUT"
+
+      - name: Ensure tenant exists
+        run: |
+          bash scripts/create-tenant.sh "${{ steps.tenant.outputs.tenant }}" || true
+
+      - name: Create ephemeral environment
+        run: |
+          bash scripts/create-env.sh \
+            "${{ steps.tenant.outputs.tenant }}" \
+            "${{ steps.branch.outputs.branch }}" \
+            "2h"
+
+      - name: Comment PR with environment info
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const tenant = '${{ steps.tenant.outputs.tenant }}';
+            const envName = '${{ steps.branch.outputs.env_name }}';
+            const ns = `tenant-${tenant}`;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## Ephemeral Environment Created\n\n` +
+                    `| Field | Value |\n|---|---|\n` +
+                    `| **Name** | \`${envName}\` |\n` +
+                    `| **Tenant** | \`${tenant}\` |\n` +
+                    `| **Namespace** | \`${ns}\` |\n` +
+                    `| **TTL** | 2h |\n\n` +
+                    `**Connect:** \`vcluster connect ${envName} -n ${ns}\`\n\n` +
+                    `ArgoCD will sync this environment shortly.`
+            });

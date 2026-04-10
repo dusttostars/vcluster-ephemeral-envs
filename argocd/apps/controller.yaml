@@ -1,0 +1,22 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ephemeral-controller
+  namespace: argocd
+  labels:
+    ephemeral.io/component: controller
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/willsbctm/vcluster-ephemeral-envs.git
+    targetRevision: HEAD
+    path: manifests/controller
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ephemeral-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

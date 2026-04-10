@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cleanup-controller
+  namespace: ephemeral-system
+  labels:
+    app: cleanup-controller
+    ephemeral.io/component: controller
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cleanup-controller
+  template:
+    metadata:
+      labels:
+        app: cleanup-controller
+    spec:
+      serviceAccountName: cleanup-controller
+      containers:
+        - name: controller
+          image: ghcr.io/willsbctm/vcluster-ephemeral-envs/controller:latest
+          args:
+            - --repo-path=/repo
+            - --interval=60s
+            - --max-age=24h
+          volumeMounts:
+            - name: repo
+              mountPath: /repo
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+        - name: git-sync
+          image: registry.k8s.io/git-sync/git-sync:v4.2.1
+          args:
+            - --repo=https://github.com/willsbctm/vcluster-ephemeral-envs.git
+            - --root=/repo
+            - --period=30s
+            - --link=current
+          volumeMounts:
+            - name: repo
+              mountPath: /repo
+          env:
+            - name: GITSYNC_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: git-credentials
+                  key: username
+            - name: GITSYNC_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: git-credentials
+                  key: token
+      volumes:
+        - name: repo
+          emptyDir: {}

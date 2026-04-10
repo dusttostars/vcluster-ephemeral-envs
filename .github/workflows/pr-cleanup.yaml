@@ -1,0 +1,57 @@
+name: PR Environment Cleanup
+
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  delete-env:
+    runs-on: self-hosted
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract branch info
+        id: branch
+        run: |
+          BRANCH="${{ github.head_ref }}"
+          ENV_NAME="${BRANCH//\//-}"
+          echo "env_name=$ENV_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Determine tenant from label
+        id: tenant
+        run: |
+          TENANT="default"
+          LABELS='${{ toJSON(github.event.pull_request.labels.*.name) }}'
+          MATCH=$(echo "$LABELS" | grep -oP 'tenant:\K[^"]+' || true)
+          if [ -n "$MATCH" ]; then
+            TENANT="$MATCH"
+          fi
+          echo "tenant=$TENANT" >> "$GITHUB_OUTPUT"
+
+      - name: Delete ephemeral environment
+        run: |
+          ENV_FILE="manifests/environments/${{ steps.tenant.outputs.tenant }}/${{ steps.branch.outputs.env_name }}.yaml"
+          if [ -f "$ENV_FILE" ]; then
+            bash scripts/delete-env.sh \
+              "${{ steps.tenant.outputs.tenant }}" \
+              "${{ steps.branch.outputs.env_name }}"
+          else
+            echo "Environment manifest not found, skipping cleanup."
+          fi
+
+      - name: Comment PR with cleanup info
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const envName = '${{ steps.branch.outputs.env_name }}';
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## Ephemeral Environment Removed\n\n` +
+                    `Environment \`${envName}\` has been cleaned up.\n` +
+                    `ArgoCD will prune the vcluster resources.`
+            });
