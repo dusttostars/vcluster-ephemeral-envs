@@ -20,8 +20,6 @@ spec:
     helm:
       values: |
         syncer:
-          extraArgs:
-            - --name=feat-test
           resources:
             requests:
               cpu: 100m
