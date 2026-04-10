@@ -1,0 +1,18 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: tenant-team-a
+  namespace: argocd
+spec:
+  description: "Ephemeral environments for tenant team-a"
+  sourceRepos:
+    - "https://github.com/dusttostars/vcluster-ephemeral-envs.git"
+    - "https://charts.loft.sh"
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: tenant-team-a
+  namespaceResourceWhitelist:
+    - group: ""
+      kind: "*"
+    - group: "apps"
+      kind: "*"

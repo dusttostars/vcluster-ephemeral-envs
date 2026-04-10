@@ -1,0 +1,36 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: vcluster-feat-test
+  namespace: argocd
+  labels:
+    ephemeral.io/tenant: "team-a"
+    ephemeral.io/branch: "feat-test"
+    ephemeral.io/ttl: "2h"
+    ephemeral.io/created-at: "2026-04-10T21:00:00Z"
+    ephemeral.io/managed-by: "ephemeral-controller"
+spec:
+  project: tenant-team-a
+  source:
+    repoURL: https://charts.loft.sh
+    chart: vcluster
+    targetRevision: "0.19.*"
+    helm:
+      values: |
+        syncer:
+          extraArgs:
+            - --name=feat-test
+        vcluster:
+          image: rancher/k3s:v1.29.1-k3s2
+        sync:
+          ingresses:
+            enabled: true
+          services:
+            enabled: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: tenant-team-a
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
