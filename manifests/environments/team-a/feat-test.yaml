@@ -22,13 +22,35 @@ spec:
         syncer:
           extraArgs:
             - --name=feat-test
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
         vcluster:
           image: rancher/k3s:v1.29.1-k3s2
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
         sync:
           ingresses:
             enabled: true
           services:
             enabled: true
+        coredns:
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
   destination:
     server: https://kubernetes.default.svc
     namespace: tenant-team-a
