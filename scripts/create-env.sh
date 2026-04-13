@@ -82,7 +82,7 @@ git config user.email "ephemeral-bot@users.noreply.github.com"
 git config user.name "ephemeral-bot"
 git add "manifests/environments/${TENANT}/${ENV_NAME}.yaml"
 git commit -m "env: create ${ENV_NAME} for tenant ${TENANT} (ttl=${TTL})"
-git push
+git push origin HEAD:master
 
 echo "==> Done! ArgoCD will sync the new vcluster."
 echo "    Connect: vcluster connect ${ENV_NAME} -n ${NAMESPACE}"
