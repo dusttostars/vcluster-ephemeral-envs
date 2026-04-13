@@ -16,7 +16,8 @@ echo "    TTL:    $TTL"
 
 # Generate the ArgoCD Application manifest for the vcluster.
 NAMESPACE="tenant-${TENANT}"
-CREATED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+CREATED_AT="$(date -u +%Y%m%dT%H%M%SZ)"
+SAFE_BRANCH="${BRANCH//\//-}"
 TARGET_DIR="${REPO_ROOT}/manifests/environments/${TENANT}"
 mkdir -p "$TARGET_DIR"
 
@@ -28,7 +29,7 @@ metadata:
   namespace: argocd
   labels:
     ephemeral.io/tenant: "${TENANT}"
-    ephemeral.io/branch: "${BRANCH}"
+    ephemeral.io/branch: "${SAFE_BRANCH}"
     ephemeral.io/ttl: "${TTL}"
     ephemeral.io/created-at: "${CREATED_AT}"
     ephemeral.io/managed-by: "ephemeral-controller"
@@ -42,9 +43,23 @@ spec:
       values: |
         syncer:
           extraArgs:
-            - --name=${ENV_NAME}
+            - --out-kube-config-server=https://vcluster-${ENV_NAME}.${NAMESPACE}.svc.cluster.local
+          resources:
+            limits:
+              cpu: 500m
+              memory: 512Mi
+            requests:
+              cpu: 100m
+              memory: 256Mi
         vcluster:
           image: rancher/k3s:v1.29.1-k3s2
+          resources:
+            limits:
+              cpu: 500m
+              memory: 512Mi
+            requests:
+              cpu: 100m
+              memory: 128Mi
         sync:
           ingresses:
             enabled: true
@@ -63,6 +78,8 @@ echo "==> Manifest written: ${TARGET_DIR}/${ENV_NAME}.yaml"
 echo "==> Committing and pushing..."
 
 cd "$REPO_ROOT"
+git config user.email "ephemeral-bot@users.noreply.github.com"
+git config user.name "ephemeral-bot"
 git add "manifests/environments/${TENANT}/${ENV_NAME}.yaml"
 git commit -m "env: create ${ENV_NAME} for tenant ${TENANT} (ttl=${TTL})"
 git push
