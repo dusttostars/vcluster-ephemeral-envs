@@ -60,19 +60,21 @@ func (h *handler) deployBranch(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	slug := slugify(req.Branch)
 	imageTag := slug
+	// Kaniko pushes to the in-cluster registry via DNS.
+	kanikoDest := fmt.Sprintf("registry.container-registry.svc.cluster.local:5000/app:%s", imageTag)
+	// Pods pull from localhost:32000 (MicroK8s NodePort).
 	imageRepo := "localhost:32000/app"
 	imageRef := fmt.Sprintf("%s:%s", imageRepo, imageTag)
 	repoURL := fmt.Sprintf("https://github.com/%s.git", h.githubRepo)
 
 	// 1. Build image with Kaniko Job.
-	jobName := fmt.Sprintf("build-%s-%d", slug, time.Now().Unix())
+	jobName := fmt.Sprintf("build-%s-%d", slug, time.Now().Unix()%100000)
 	if len(jobName) > 63 {
 		jobName = jobName[:63]
 	}
 
 	log.Printf("deploy: creating kaniko build job %s for branch %s", jobName, req.Branch)
-
-	if err := h.runKanikoBuild(ctx, jobName, repoURL, req.Branch, imageRef); err != nil {
+	if err := h.runKanikoBuild(ctx, jobName, repoURL, req.Branch, kanikoDest); err != nil {
 		http.Error(w, fmt.Sprintf("building image: %v", err), http.StatusInternalServerError)
 		return
 	}
@@ -116,9 +118,9 @@ func (h *handler) deployBranch(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// runKanikoBuild creates a Kaniko Job that clones the repo, builds the image,
-// and pushes to the local registry. Blocks until the job completes.
-func (h *handler) runKanikoBuild(ctx context.Context, jobName, repoURL, branch, imageRef string) error {
+// runKanikoBuild creates a Kaniko Job that clones the repo, builds the image
+// from app/Dockerfile, and pushes to the in-cluster registry.
+func (h *handler) runKanikoBuild(ctx context.Context, jobName, repoURL, branch, destination string) error {
 	buildNS := "ephemeral-system"
 	backoffLimit := int64(0)
 	ttl := int64(300)
@@ -161,7 +163,7 @@ func (h *handler) runKanikoBuild(ctx context.Context, jobName, repoURL, branch, 
 								"args": []interface{}{
 									"--dockerfile=/workspace/app/Dockerfile",
 									"--context=/workspace/app",
-									fmt.Sprintf("--destination=%s", imageRef),
+									fmt.Sprintf("--destination=%s", destination),
 									"--insecure",
 									"--cache=false",
 								},
@@ -195,7 +197,6 @@ func (h *handler) runKanikoBuild(ctx context.Context, jobName, repoURL, branch, 
 		},
 	}
 
-	// Create the job.
 	_, err := h.client.Resource(jobGVR).Namespace(buildNS).Create(ctx, job, metav1.CreateOptions{})
 	if err != nil {
 		return fmt.Errorf("creating kaniko job: %w", err)
@@ -203,7 +204,6 @@ func (h *handler) runKanikoBuild(ctx context.Context, jobName, repoURL, branch, 
 
 	log.Printf("deploy: kaniko job %s created, waiting for completion...", jobName)
 
-	// Poll until the job completes (up to 5 minutes).
 	deadline := time.Now().Add(5 * time.Minute)
 	for time.Now().Before(deadline) {
 		j, err := h.client.Resource(jobGVR).Namespace(buildNS).Get(ctx, jobName, metav1.GetOptions{})
@@ -211,22 +211,13 @@ func (h *handler) runKanikoBuild(ctx context.Context, jobName, repoURL, branch, 
 			return fmt.Errorf("checking job status: %w", err)
 		}
 
-		status, _, _ := nestedMap(j.Object, "status")
-
-		// Check for completion.
-		succeeded, _ := status["succeeded"].(int64)
-		if succeeded > 0 {
-			log.Printf("deploy: kaniko job %s succeeded", jobName)
-			return nil
+		status, ok, _ := nestedMap(j.Object, "status")
+		if !ok {
+			time.Sleep(5 * time.Second)
+			continue
 		}
 
-		// Check for failure.
-		failed, _ := status["failed"].(int64)
-		if failed > 0 {
-			return fmt.Errorf("kaniko build job failed")
-		}
-
-		// Also check conditions for completion.
+		// Check conditions for Complete/Failed.
 		if conditions, ok := status["conditions"].([]interface{}); ok {
 			for _, c := range conditions {
 				if cm, ok := c.(map[string]interface{}); ok {
@@ -241,6 +232,18 @@ func (h *handler) runKanikoBuild(ctx context.Context, jobName, repoURL, branch, 
 						return fmt.Errorf("kaniko build failed: %s", reason)
 					}
 				}
+			}
+		}
+
+		// Also check succeeded/failed counts.
+		if succeeded, ok := status["succeeded"]; ok {
+			if s, ok := succeeded.(int64); ok && s > 0 {
+				return nil
+			}
+		}
+		if failed, ok := status["failed"]; ok {
+			if f, ok := failed.(int64); ok && f > 0 {
+				return fmt.Errorf("kaniko build job failed")
 			}
 		}
 
