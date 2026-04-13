@@ -7,7 +7,7 @@ metadata:
     ephemeral.io/tenant: "default"
     ephemeral.io/branch: "feat-auto-deploy"
     ephemeral.io/ttl: "2h"
-    ephemeral.io/created-at: "20260413T213319Z"
+    ephemeral.io/created-at: "20260413T213947Z"
     ephemeral.io/managed-by: "ephemeral-controller"
 spec:
   project: tenant-default
