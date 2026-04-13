@@ -41,7 +41,7 @@ func main() {
 </head>
 <body>
   <div class="card">
-    <h1><span class="pulse"></span>Ephemeral App</h1>
+    <h1><span class="pulse"></span>Toy App v1</h1>
     <p class="subtitle">Running inside a vCluster</p>
     <div class="row"><span class="label">Hostname</span><span class="value">%s</span></div>
     <div class="row"><span class="label">Branch</span><span class="value">%s</span></div>
