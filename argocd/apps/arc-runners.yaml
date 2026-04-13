@@ -15,8 +15,7 @@ spec:
       values: |
         # Replace with your GitHub config URL and PAT/GitHub App credentials.
         githubConfigUrl: "https://github.com/dusttostars/vcluster-ephemeral-envs"
-        githubConfigSecret:
-          github_token: "REPLACE_WITH_PAT"
+        githubConfigSecret: arc-github-token
         maxRunners: 5
         minRunners: 1
         containerMode:
