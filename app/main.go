@@ -41,8 +41,8 @@ func main() {
 </head>
 <body>
   <div class="card">
-    <h1><span class="pulse"></span>Ephemeral App</h1>
-    <p class="subtitle">Running inside a vCluster</p>
+    <h1><span class="pulse"></span>Nginx Test App</h1>
+    <p class="subtitle">Deployed automatically via PR</p>
     <div class="row"><span class="label">Hostname</span><span class="value">%s</span></div>
     <div class="row"><span class="label">Branch</span><span class="value">%s</span></div>
     <div class="row"><span class="label">Commit</span><span class="value">%s</span></div>
