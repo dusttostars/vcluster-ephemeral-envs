@@ -97,10 +97,17 @@ spec:
   destinations:
     - server: https://kubernetes.default.svc
       namespace: ${NAMESPACE}
+  clusterResourceWhitelist:
+    - group: "rbac.authorization.k8s.io"
+      kind: "ClusterRole"
+    - group: "rbac.authorization.k8s.io"
+      kind: "ClusterRoleBinding"
   namespaceResourceWhitelist:
     - group: ""
       kind: "*"
     - group: "apps"
+      kind: "*"
+    - group: "rbac.authorization.k8s.io"
       kind: "*"
 EOF
 
