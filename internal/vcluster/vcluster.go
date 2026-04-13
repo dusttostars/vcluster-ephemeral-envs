@@ -105,8 +105,7 @@ func (e *Environment) GenerateArgoApp() *HelmRelease {
 
 	values := fmt.Sprintf(`syncer:
   extraArgs:
-    - --name=%s
-    - --out-kube-config-server=https://%s.%s.svc.cluster.local
+    - --out-kube-config-server=https://vcluster-%s.%s.svc.cluster.local
   resources:
     limits:
       cpu: 500m
@@ -132,7 +131,7 @@ sync:
     enabled: true
   services:
     enabled: true
-`, e.Name, e.Name, namespace)
+`, e.Name, namespace)
 
 	return &HelmRelease{
 		APIVersion: "argoproj.io/v1alpha1",
