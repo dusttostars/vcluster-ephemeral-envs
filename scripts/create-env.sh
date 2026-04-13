@@ -80,9 +80,15 @@ echo "==> Committing and pushing..."
 cd "$REPO_ROOT"
 git config user.email "ephemeral-bot@users.noreply.github.com"
 git config user.name "ephemeral-bot"
+git fetch origin master
+git checkout master
+git pull origin master
 git add "manifests/environments/${TENANT}/${ENV_NAME}.yaml"
+# Also add tenant manifests if create-tenant generated them
+git add "manifests/tenants/${TENANT}/" 2>/dev/null || true
+git add "argocd/projects/" 2>/dev/null || true
 git commit -m "env: create ${ENV_NAME} for tenant ${TENANT} (ttl=${TTL})"
-git push origin HEAD:master
+git push origin master
 
 echo "==> Done! ArgoCD will sync the new vcluster."
 echo "    Connect: vcluster connect ${ENV_NAME} -n ${NAMESPACE}"
