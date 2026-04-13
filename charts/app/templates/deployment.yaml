@@ -20,5 +20,18 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - containerPort: {{ .Values.port }}
+          env:
+            - name: PORT
+              value: "{{ .Values.port }}"
+            - name: GIT_BRANCH
+              value: "{{ .Values.gitBranch }}"
+            - name: GIT_COMMIT
+              value: "{{ .Values.gitCommit }}"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.port }}
+            initialDelaySeconds: 2
+            periodSeconds: 5
           resources:
             {{- toYaml .Values.resources | nindent 12 }}

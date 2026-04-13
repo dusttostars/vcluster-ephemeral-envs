@@ -74,20 +74,25 @@ func (h *handler) deployBranch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 2. Check if there's a Dockerfile in the cloned repo.
+	// 2. Determine build context — prefer app/ subdirectory if it exists.
+	buildContext := cloneDir
 	dockerfile := "Dockerfile"
-	for _, candidate := range []string{"Dockerfile", "Dockerfile.cli"} {
-		if _, err := os.Stat(filepath.Join(cloneDir, candidate)); err == nil {
-			dockerfile = candidate
-			break
+	if _, err := os.Stat(filepath.Join(cloneDir, "app", "Dockerfile")); err == nil {
+		buildContext = filepath.Join(cloneDir, "app")
+	} else {
+		for _, candidate := range []string{"Dockerfile", "Dockerfile.cli"} {
+			if _, err := os.Stat(filepath.Join(cloneDir, candidate)); err == nil {
+				dockerfile = candidate
+				break
+			}
 		}
 	}
 
 	// 3. Build the Docker image.
 	buildCmd := exec.CommandContext(ctx, "docker", "build",
 		"-t", imageRef,
-		"-f", filepath.Join(cloneDir, dockerfile),
-		cloneDir,
+		"-f", filepath.Join(buildContext, dockerfile),
+		buildContext,
 	)
 	if out, err := buildCmd.CombinedOutput(); err != nil {
 		log.Printf("docker build failed: %s", string(out))
@@ -121,6 +126,11 @@ func (h *handler) deployBranch(w http.ResponseWriter, r *http.Request) {
 	chartPath := filepath.Join(h.repoPath, "charts", "app")
 	releaseName := fmt.Sprintf("app-%s", slug)
 
+	// Get the short commit SHA from the cloned repo.
+	commitCmd := exec.CommandContext(ctx, "git", "-C", cloneDir, "rev-parse", "--short", "HEAD")
+	commitOut, _ := commitCmd.Output()
+	commitSHA := strings.TrimSpace(string(commitOut))
+
 	helmArgs := []string{
 		"upgrade", "--install", releaseName, chartPath,
 		"--kubeconfig", kubeconfig,
@@ -129,6 +139,8 @@ func (h *handler) deployBranch(w http.ResponseWriter, r *http.Request) {
 		"--set", fmt.Sprintf("image.repository=%s", imageRepo),
 		"--set", fmt.Sprintf("image.tag=%s", imageTag),
 		"--set", "image.pullPolicy=Always",
+		"--set", fmt.Sprintf("gitBranch=%s", req.Branch),
+		"--set", fmt.Sprintf("gitCommit=%s", commitSHA),
 	}
 
 	helmCmd := exec.CommandContext(ctx, "helm", helmArgs...)

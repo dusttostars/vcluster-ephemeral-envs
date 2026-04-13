@@ -7,6 +7,9 @@ replicas: 1
 
 port: 8080
 
+gitBranch: ""
+gitCommit: ""
+
 resources:
   limits:
     cpu: 200m
