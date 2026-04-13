@@ -45,20 +45,29 @@ jobs:
             "${{ steps.branch.outputs.branch }}" \
             "2h"
 
+      - name: Apply ArgoCD Application directly
+        run: |
+          TENANT="${{ steps.tenant.outputs.tenant }}"
+          ENV_NAME="${{ steps.branch.outputs.env_name }}"
+          MANIFEST="manifests/environments/${TENANT}/${ENV_NAME}.yaml"
+          if [ -f "$MANIFEST" ]; then
+            echo "Applying $MANIFEST directly to speed up sync..."
+            kubectl apply -f "$MANIFEST"
+          fi
+
       - name: Wait for vCluster to be ready
         run: |
           TENANT="${{ steps.tenant.outputs.tenant }}"
           ENV_NAME="${{ steps.branch.outputs.env_name }}"
           NS="tenant-${TENANT}"
           echo "Waiting for vcluster-${ENV_NAME} in ${NS}..."
-          for i in $(seq 1 60); do
+          for i in $(seq 1 30); do
             if kubectl get pod "vcluster-${ENV_NAME}-0" -n "$NS" -o jsonpath='{.status.phase}' 2>/dev/null | grep -q Running; then
               echo "vCluster is running!"
-              # Wait a bit more for the API server inside to be ready
               sleep 10
               exit 0
             fi
-            echo "  Attempt $i/60 - waiting 10s..."
+            echo "  Attempt $i/30 - waiting 10s..."
             sleep 10
           done
           echo "Timed out waiting for vCluster"
