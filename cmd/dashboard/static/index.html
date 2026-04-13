@@ -434,6 +434,73 @@
 
   .toast.show { display: block; }
   .toast.error { border-color: var(--red); color: var(--red); }
+
+  /* Charts panel */
+  .charts-table { width: 100%; border-collapse: collapse; }
+  .charts-table th, .charts-table td {
+    text-align: left;
+    padding: 8px 12px;
+    font-size: 12px;
+    font-family: var(--font-mono);
+  }
+  .charts-table th {
+    color: var(--fg-muted);
+    font-weight: 600;
+    border-bottom: 1px solid var(--border);
+  }
+  .charts-table td { color: var(--fg-secondary); border-bottom: 1px solid rgba(255,255,255,0.04); }
+  .charts-table .badge.deployed { background: rgba(34,197,94,0.1); color: var(--green); }
+  .charts-table .badge.deployed .badge-dot { background: var(--green); }
+  .charts-table .badge.failed { background: rgba(239,68,68,0.1); color: var(--red); }
+  .charts-table .badge.failed .badge-dot { background: var(--red); }
+
+  .btn-uninstall {
+    padding: 4px 10px;
+    border-radius: var(--radius-lg);
+    font-size: 11px;
+    font-weight: 500;
+    font-family: var(--font-body);
+    background: rgba(239,68,68,0.1);
+    color: var(--red);
+    border: none;
+    cursor: pointer;
+  }
+  .btn-uninstall:hover { opacity: 0.8; }
+
+  /* Catalog chips */
+  .catalog-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+  .catalog-chip {
+    padding: 8px 14px;
+    border-radius: var(--radius-lg);
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .catalog-chip:hover { border-color: var(--accent); background: rgba(168,85,247,0.06); }
+  .catalog-chip-name { font-size: 12px; font-weight: 600; color: var(--fg-primary); }
+  .catalog-chip-desc { font-size: 10px; color: var(--fg-muted); margin-top: 2px; }
+
+  .charts-empty {
+    text-align: center;
+    padding: 24px;
+    color: var(--fg-muted);
+    font-size: 13px;
+  }
+
+  .form-group textarea {
+    background: var(--surface-primary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 10px 14px;
+    font-size: 13px;
+    font-family: var(--font-mono);
+    color: var(--fg-primary);
+    outline: none;
+    resize: vertical;
+    transition: border-color 0.15s;
+  }
+  .form-group textarea:focus { border-color: var(--accent); }
 </style>
 </head>
 <body>
@@ -532,8 +599,12 @@
       <select id="env-tenant"></select>
     </div>
     <div class="form-group">
-      <label>BRANCH</label>
-      <input type="text" id="env-branch" placeholder="e.g. feat/login-flow">
+      <label>BRANCH (from GitHub)</label>
+      <select id="env-branch"><option value="">Loading branches...</option></select>
+    </div>
+    <div class="form-group" style="flex-direction:row;align-items:center;gap:8px">
+      <input type="checkbox" id="env-deploy" style="width:auto;accent-color:var(--accent)">
+      <label for="env-deploy" style="font-size:13px;color:var(--fg-secondary);cursor:pointer">Build &amp; deploy code from this branch</label>
     </div>
     <div class="form-group">
       <label>TTL</label>
@@ -563,6 +634,84 @@
     <div class="connect-cmd" id="connect-kubectl"></div>
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeConnectModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Charts Panel Modal -->
+<div class="modal-overlay" id="charts-panel">
+  <div class="modal" style="width:620px">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <h2>Installed Charts</h2>
+        <p id="charts-panel-target" style="font-size:12px;color:var(--fg-muted);font-family:var(--font-mono);margin-top:4px"></p>
+      </div>
+      <button class="btn-create" style="padding:8px 16px;font-size:12px" onclick="openChartInstallModal()">
+        <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" style="width:14px;height:14px;stroke:white;fill:none"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Install Chart
+      </button>
+    </div>
+    <div id="charts-list"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeChartsPanel()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Install Chart Modal -->
+<div class="modal-overlay" id="chart-install-modal">
+  <div class="modal" style="width:520px">
+    <h2>Install Helm Chart</h2>
+    <p id="chart-install-target" style="font-size:12px;color:var(--fg-muted);font-family:var(--font-mono);margin-bottom:4px"></p>
+    <div id="chart-catalog" class="catalog-grid"></div>
+    <div class="form-group">
+      <label>CHART REPO URL</label>
+      <input type="text" id="chart-repo" placeholder="https://charts.bitnami.com/bitnami">
+    </div>
+    <div class="form-group">
+      <label>CHART NAME</label>
+      <input type="text" id="chart-name" placeholder="e.g. postgresql">
+    </div>
+    <div class="form-group">
+      <label>VERSION (optional)</label>
+      <input type="text" id="chart-version" placeholder="e.g. 15.5.0 (latest if empty)">
+    </div>
+    <div class="form-group">
+      <label>RELEASE NAME</label>
+      <input type="text" id="chart-release" placeholder="e.g. my-postgres">
+    </div>
+    <div class="form-group">
+      <label>NAMESPACE</label>
+      <input type="text" id="chart-namespace" value="default" placeholder="default">
+    </div>
+    <div class="form-group">
+      <label>VALUES (YAML, optional)</label>
+      <textarea id="chart-values" rows="4" placeholder="key: value"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeChartInstallModal()">Cancel</button>
+      <button class="btn-submit" id="btn-chart-submit" onclick="submitChartInstall()">Install</button>
+    </div>
+  </div>
+</div>
+
+<!-- Deploy Modal -->
+<div class="modal-overlay" id="deploy-modal">
+  <div class="modal">
+    <h2>Deploy Branch</h2>
+    <p id="deploy-target" style="font-size:12px;color:var(--fg-muted);font-family:var(--font-mono);margin-bottom:4px"></p>
+    <div class="form-group">
+      <label>BRANCH</label>
+      <select id="deploy-branch"><option value="">Loading...</option></select>
+    </div>
+    <div class="form-group">
+      <label>NAMESPACE</label>
+      <input type="text" id="deploy-namespace" value="default" placeholder="default">
+    </div>
+    <p style="font-size:11px;color:var(--fg-muted)">This will clone the branch, build a Docker image, and deploy it into the vcluster.</p>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeDeployModal()">Cancel</button>
+      <button class="btn-submit" id="btn-deploy-submit" onclick="submitDeploy()">Deploy</button>
     </div>
   </div>
 </div>
@@ -628,6 +777,8 @@
         <span class="td col-actions">
           <span class="actions">
             ${env.status === 'Expiring' ? `<button class="btn-sm btn-extend" onclick="extendEnv('${esc(env.tenant)}','${esc(env.name)}')">Extend</button>` : ''}
+            ${env.status === 'Running' ? `<button class="btn-sm btn-extend" onclick="openDeployModal('${esc(env.tenant)}','${esc(env.name)}')">Deploy</button>` : ''}
+            <button class="btn-sm btn-connect" onclick="openChartsPanel('${esc(env.tenant)}','${esc(env.name)}')">Charts</button>
             <button class="btn-sm btn-connect" onclick="showConnect('${esc(env.name)}','${esc(env.tenant)}')">Connect</button>
             <button class="btn-delete" onclick="deleteEnv('${esc(env.tenant)}','${esc(env.name)}')" title="Delete">
               <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
@@ -638,24 +789,39 @@
     `).join('');
   }
 
-  function openCreateModal() {
+  async function openCreateModal() {
     const select = document.getElementById('env-tenant');
     select.innerHTML = tenants.map(t => `<option value="${esc(t)}">${esc(t)}</option>`).join('');
     document.getElementById('create-modal').classList.add('open');
     document.getElementById('env-name').focus();
+    // Load branches from GitHub
+    const branchSelect = document.getElementById('env-branch');
+    branchSelect.innerHTML = '<option value="">Loading branches...</option>';
+    try {
+      const res = await fetch('/api/github/branches');
+      if (res.ok) {
+        const branches = await res.json();
+        branchSelect.innerHTML = branches.map(b => `<option value="${esc(b.name)}">${esc(b.name)}</option>`).join('');
+      } else {
+        branchSelect.innerHTML = '<option value="">Failed to load branches</option>';
+      }
+    } catch (e) {
+      branchSelect.innerHTML = '<option value="">GitHub not configured</option>';
+    }
   }
 
   function closeCreateModal() {
     document.getElementById('create-modal').classList.remove('open');
     document.getElementById('env-name').value = '';
-    document.getElementById('env-branch').value = '';
+    document.getElementById('env-deploy').checked = false;
   }
 
   async function submitCreate() {
     const name = document.getElementById('env-name').value.trim();
     const tenant = document.getElementById('env-tenant').value;
-    const branch = document.getElementById('env-branch').value.trim();
+    const branch = document.getElementById('env-branch').value;
     const ttl = document.getElementById('env-ttl').value;
+    const deploy = document.getElementById('env-deploy').checked;
 
     if (!name || !tenant || !branch) {
       showToast('Please fill in all fields', true);
@@ -664,7 +830,7 @@
 
     const btn = document.getElementById('btn-create-submit');
     btn.disabled = true;
-    btn.textContent = 'Creating...';
+    btn.textContent = deploy ? 'Creating & deploying...' : 'Creating...';
 
     try {
       const res = await fetch('/api/environments', {
@@ -679,6 +845,24 @@
       }
 
       showToast(`Environment "${name}" created. ArgoCD will sync shortly.`);
+
+      if (deploy) {
+        btn.textContent = 'Building & deploying...';
+        showToast(`Building and deploying branch "${branch}"...`);
+        // Wait a bit for the vcluster to be ready before deploying
+        const deployRes = await fetch(`/api/environments/${encodeURIComponent(tenant)}/${encodeURIComponent(name)}/deploy`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ branch, namespace: 'default' })
+        });
+        if (deployRes.ok) {
+          showToast(`Branch "${branch}" deployed into "${name}"!`);
+        } else {
+          const text = await deployRes.text();
+          showToast('Deploy failed (env created): ' + text, true);
+        }
+      }
+
       closeCreateModal();
       await fetchData();
     } catch (e) {
@@ -740,8 +924,230 @@
     return d.innerHTML;
   }
 
+  // ---- Deploy feature ----
+
+  let deployTarget = { tenant: '', name: '' };
+
+  async function openDeployModal(tenant, name) {
+    deployTarget = { tenant, name };
+    document.getElementById('deploy-target').textContent = `${name} / ${tenant}`;
+    document.getElementById('deploy-namespace').value = 'default';
+    document.getElementById('deploy-modal').classList.add('open');
+
+    const branchSelect = document.getElementById('deploy-branch');
+    branchSelect.innerHTML = '<option value="">Loading branches...</option>';
+    try {
+      const res = await fetch('/api/github/branches');
+      if (res.ok) {
+        const branches = await res.json();
+        branchSelect.innerHTML = branches.map(b => `<option value="${esc(b.name)}">${esc(b.name)} (${b.sha.substring(0,7)})</option>`).join('');
+      } else {
+        branchSelect.innerHTML = '<option value="">Failed to load</option>';
+      }
+    } catch (e) {
+      branchSelect.innerHTML = '<option value="">GitHub not configured</option>';
+    }
+  }
+
+  function closeDeployModal() {
+    document.getElementById('deploy-modal').classList.remove('open');
+  }
+
+  async function submitDeploy() {
+    const { tenant, name } = deployTarget;
+    const branch = document.getElementById('deploy-branch').value;
+    const namespace = document.getElementById('deploy-namespace').value.trim() || 'default';
+
+    if (!branch) {
+      showToast('Please select a branch', true);
+      return;
+    }
+
+    const btn = document.getElementById('btn-deploy-submit');
+    btn.disabled = true;
+    btn.textContent = 'Building & deploying...';
+
+    try {
+      const res = await fetch(`/api/environments/${encodeURIComponent(tenant)}/${encodeURIComponent(name)}/deploy`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ branch, namespace })
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text);
+      }
+
+      const data = await res.json();
+      showToast(data.message);
+      closeDeployModal();
+    } catch (e) {
+      showToast('Deploy failed: ' + e.message, true);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Deploy';
+    }
+  }
+
+  // ---- Charts feature ----
+
+  let currentChartTarget = { tenant: '', name: '' };
+  let chartCatalog = [];
+
+  async function loadChartCatalog() {
+    try {
+      const res = await fetch('/api/charts/catalog');
+      chartCatalog = await res.json();
+    } catch (e) {
+      chartCatalog = [];
+    }
+  }
+
+  async function openChartsPanel(tenant, name) {
+    currentChartTarget = { tenant, name };
+    document.getElementById('charts-panel-target').textContent = `${name} / ${tenant}`;
+    document.getElementById('charts-panel').classList.add('open');
+    await refreshChartsList();
+  }
+
+  function closeChartsPanel() {
+    document.getElementById('charts-panel').classList.remove('open');
+  }
+
+  async function refreshChartsList() {
+    const { tenant, name } = currentChartTarget;
+    const el = document.getElementById('charts-list');
+    el.innerHTML = '<div class="charts-empty">Loading...</div>';
+
+    try {
+      const res = await fetch(`/api/environments/${encodeURIComponent(tenant)}/${encodeURIComponent(name)}/charts`);
+      if (!res.ok) throw new Error(await res.text());
+
+      const releases = await res.json();
+      if (!releases || releases.length === 0) {
+        el.innerHTML = '<div class="charts-empty">No charts installed yet.</div>';
+        return;
+      }
+
+      el.innerHTML = `<table class="charts-table">
+        <thead><tr><th>Release</th><th>Chart</th><th>Namespace</th><th>Status</th><th></th></tr></thead>
+        <tbody>${releases.map(r => `<tr>
+          <td style="color:var(--fg-primary);font-weight:500">${esc(r.name)}</td>
+          <td>${esc(r.chart)}</td>
+          <td>${esc(r.namespace)}</td>
+          <td><span class="badge ${r.status === 'deployed' ? 'deployed' : 'failed'}"><span class="badge-dot"></span>${esc(r.status)}</span></td>
+          <td><button class="btn-uninstall" onclick="uninstallChart('${esc(r.name)}','${esc(r.namespace)}')">Uninstall</button></td>
+        </tr>`).join('')}</tbody>
+      </table>`;
+    } catch (e) {
+      el.innerHTML = `<div class="charts-empty" style="color:var(--red)">Failed to load charts: ${esc(e.message)}</div>`;
+    }
+  }
+
+  function openChartInstallModal() {
+    const { tenant, name } = currentChartTarget;
+    document.getElementById('chart-install-target').textContent = `Installing into: ${name} / ${tenant}`;
+
+    // Render catalog chips
+    const catalogEl = document.getElementById('chart-catalog');
+    catalogEl.innerHTML = chartCatalog.map((c, i) => `
+      <div class="catalog-chip" onclick="selectCatalogChart(${i})">
+        <div class="catalog-chip-name">${esc(c.name)}</div>
+        <div class="catalog-chip-desc">${esc(c.description)}</div>
+      </div>
+    `).join('');
+
+    // Clear form
+    document.getElementById('chart-repo').value = '';
+    document.getElementById('chart-name').value = '';
+    document.getElementById('chart-version').value = '';
+    document.getElementById('chart-release').value = '';
+    document.getElementById('chart-namespace').value = 'default';
+    document.getElementById('chart-values').value = '';
+
+    document.getElementById('chart-install-modal').classList.add('open');
+  }
+
+  function closeChartInstallModal() {
+    document.getElementById('chart-install-modal').classList.remove('open');
+  }
+
+  function selectCatalogChart(index) {
+    const c = chartCatalog[index];
+    if (!c) return;
+    document.getElementById('chart-repo').value = c.repoURL;
+    document.getElementById('chart-name').value = c.chartName;
+    document.getElementById('chart-version').value = c.version;
+    document.getElementById('chart-release').value = c.chartName;
+  }
+
+  async function submitChartInstall() {
+    const { tenant, name } = currentChartTarget;
+    const repoURL = document.getElementById('chart-repo').value.trim();
+    const chartName = document.getElementById('chart-name').value.trim();
+    const version = document.getElementById('chart-version').value.trim();
+    const releaseName = document.getElementById('chart-release').value.trim();
+    const namespace = document.getElementById('chart-namespace').value.trim() || 'default';
+    const values = document.getElementById('chart-values').value;
+
+    if (!repoURL || !chartName || !releaseName) {
+      showToast('Repo URL, chart name, and release name are required', true);
+      return;
+    }
+
+    const btn = document.getElementById('btn-chart-submit');
+    btn.disabled = true;
+    btn.textContent = 'Installing...';
+
+    try {
+      const res = await fetch(`/api/environments/${encodeURIComponent(tenant)}/${encodeURIComponent(name)}/charts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ repoURL, chartName, version, releaseName, namespace, values })
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text);
+      }
+
+      showToast(`Chart "${chartName}" installed as "${releaseName}"`);
+      closeChartInstallModal();
+      await refreshChartsList();
+    } catch (e) {
+      showToast('Install failed: ' + e.message, true);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Install';
+    }
+  }
+
+  async function uninstallChart(release, namespace) {
+    if (!confirm(`Uninstall release "${release}" from namespace "${namespace}"?`)) return;
+
+    const { tenant, name } = currentChartTarget;
+    try {
+      const res = await fetch(
+        `/api/environments/${encodeURIComponent(tenant)}/${encodeURIComponent(name)}/charts/${encodeURIComponent(release)}?namespace=${encodeURIComponent(namespace)}`,
+        { method: 'DELETE' }
+      );
+
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text);
+      }
+
+      showToast(`Release "${release}" uninstalled`);
+      await refreshChartsList();
+    } catch (e) {
+      showToast('Uninstall failed: ' + e.message, true);
+    }
+  }
+
   // Initial load + auto-refresh every 15s
   fetchData();
+  loadChartCatalog();
   setInterval(fetchData, 15000);
 </script>
 

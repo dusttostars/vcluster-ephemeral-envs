@@ -24,9 +24,23 @@ var argoAppGVR = schema.GroupVersionResource{
 	Resource: "applications",
 }
 
+var secretGVR = schema.GroupVersionResource{
+	Group:    "",
+	Version:  "v1",
+	Resource: "secrets",
+}
+
+var serviceGVR = schema.GroupVersionResource{
+	Group:    "",
+	Version:  "v1",
+	Resource: "services",
+}
+
 type handler struct {
-	client   dynamic.Interface
-	repoPath string
+	client      dynamic.Interface
+	repoPath    string
+	githubToken string
+	githubRepo  string
 }
 
 type envResponse struct {

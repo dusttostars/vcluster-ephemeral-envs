@@ -23,15 +23,23 @@ var staticFiles embed.FS
 
 func main() {
 	var (
-		addr       string
-		kubeconfig string
-		repoPath   string
+		addr        string
+		kubeconfig  string
+		repoPath    string
+		githubToken string
+		githubRepo  string
 	)
 
 	flag.StringVar(&addr, "addr", ":8090", "HTTP listen address")
 	flag.StringVar(&kubeconfig, "kubeconfig", "", "Path to kubeconfig (uses in-cluster config if empty)")
 	flag.StringVar(&repoPath, "repo-path", ".", "Path to the GitOps repo root")
+	flag.StringVar(&githubToken, "github-token", "", "GitHub personal access token (falls back to GITHUB_PAT env)")
+	flag.StringVar(&githubRepo, "github-repo", "dusttostars/vcluster-ephemeral-envs", "GitHub repo (owner/name)")
 	flag.Parse()
+
+	if githubToken == "" {
+		githubToken = os.Getenv("GITHUB_PAT")
+	}
 
 	config, err := buildConfig(kubeconfig)
 	if err != nil {
@@ -44,8 +52,10 @@ func main() {
 	}
 
 	h := &handler{
-		client:   client,
-		repoPath: repoPath,
+		client:      client,
+		repoPath:    repoPath,
+		githubToken: githubToken,
+		githubRepo:  githubRepo,
 	}
 
 	mux := http.NewServeMux()
@@ -55,6 +65,18 @@ func main() {
 	mux.HandleFunc("POST /api/environments", h.createEnvironment)
 	mux.HandleFunc("DELETE /api/environments/{tenant}/{name}", h.deleteEnvironment)
 	mux.HandleFunc("GET /api/tenants", h.listTenants)
+
+	// GitHub routes
+	mux.HandleFunc("GET /api/github/branches", h.listBranches)
+
+	// Deploy routes
+	mux.HandleFunc("POST /api/environments/{tenant}/{name}/deploy", h.deployBranch)
+
+	// Helm chart routes
+	mux.HandleFunc("GET /api/charts/catalog", h.chartCatalog)
+	mux.HandleFunc("GET /api/environments/{tenant}/{name}/charts", h.listCharts)
+	mux.HandleFunc("POST /api/environments/{tenant}/{name}/charts", h.installChart)
+	mux.HandleFunc("DELETE /api/environments/{tenant}/{name}/charts/{release}", h.uninstallChart)
 
 	// Static files
 	static, err := fs.Sub(staticFiles, "static")
@@ -67,7 +89,7 @@ func main() {
 		Addr:         addr,
 		Handler:      mux,
 		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 30 * time.Second,
+		WriteTimeout: 5 * time.Minute,
 	}
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

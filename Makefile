@@ -1,5 +1,5 @@
-.PHONY: help setup setup-microk8s setup-argocd setup-arc build build-cli build-controller \
-       tenant-create env-create env-delete docker-build docker-push
+.PHONY: help setup setup-microk8s setup-argocd setup-arc build build-cli build-controller build-dashboard \
+       tenant-create env-create env-delete docker-build docker-push dashboard
 
 REPO_URL ?= https://github.com/dusttostars/vcluster-ephemeral-envs.git
 REGISTRY ?= ghcr.io/dusttostars/vcluster-ephemeral-envs
@@ -23,13 +23,19 @@ setup-arc: ## Configure ARC (GitHub Actions runners in-cluster)
 
 # --- Build ---
 
-build: build-cli build-controller ## Build all Go binaries
+build: build-cli build-controller build-dashboard ## Build all Go binaries
 
 build-cli: ## Build the ephemeral CLI
 	go build -o bin/ephemeral ./cmd/cli
 
 build-controller: ## Build the cleanup controller
 	go build -o bin/controller ./cmd/controller
+
+build-dashboard: ## Build the dashboard web server
+	go build -o bin/dashboard ./cmd/dashboard
+
+dashboard: build-dashboard ## Run the dashboard locally
+	./bin/dashboard --repo-path=. --addr=:8090
 
 # --- Docker ---
 
