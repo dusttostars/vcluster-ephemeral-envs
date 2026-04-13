@@ -16,6 +16,9 @@ spec:
         # Replace with your GitHub config URL and PAT/GitHub App credentials.
         githubConfigUrl: "https://github.com/dusttostars/vcluster-ephemeral-envs"
         githubConfigSecret: arc-github-token
+        controllerServiceAccount:
+          name: actions-runner-controller-gha-rs-controller
+          namespace: arc-system
         maxRunners: 5
         minRunners: 1
         containerMode:
@@ -35,3 +38,4 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+      - ServerSideApply=true
