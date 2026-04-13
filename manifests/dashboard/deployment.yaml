@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dashboard
+  namespace: ephemeral-system
+  labels:
+    app: dashboard
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dashboard
+  template:
+    metadata:
+      labels:
+        app: dashboard
+    spec:
+      serviceAccountName: dashboard
+      containers:
+        - name: dashboard
+          image: localhost:32000/dashboard:latest
+          imagePullPolicy: Always
+          args:
+            - --addr=:8090
+            - --repo-path=/repo
+            - --github-repo=dusttostars/vcluster-ephemeral-envs
+          env:
+            - name: GITHUB_PAT
+              valueFrom:
+                secretKeyRef:
+                  name: dashboard-github-token
+                  key: token
+          ports:
+            - containerPort: 8090
+          resources:
+            limits:
+              cpu: 200m
+              memory: 256Mi
+            requests:
+              cpu: 50m
+              memory: 64Mi
+          volumeMounts:
+            - name: repo
+              mountPath: /repo
+      initContainers:
+        - name: git-clone
+          image: alpine/git:latest
+          command:
+            - git
+            - clone
+            - --depth=1
+            - https://github.com/dusttostars/vcluster-ephemeral-envs.git
+            - /repo
+          volumeMounts:
+            - name: repo
+              mountPath: /repo
+      volumes:
+        - name: repo
+          emptyDir: {}
