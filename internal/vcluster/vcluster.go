@@ -107,8 +107,22 @@ func (e *Environment) GenerateArgoApp() *HelmRelease {
   extraArgs:
     - --name=%s
     - --out-kube-config-server=https://%s.%s.svc.cluster.local
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
 vcluster:
   image: rancher/k3s:v1.29.1-k3s2
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
 sync:
   nodes:
     enabled: false

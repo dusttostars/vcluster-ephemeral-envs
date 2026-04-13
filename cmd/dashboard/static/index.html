@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>vCluster Dashboard</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --surface-primary: #0A0A0A;
+    --surface-secondary: #1A1A1A;
+    --fg-primary: #FFFFFF;
+    --fg-secondary: #A1A1AA;
+    --fg-muted: #71717A;
+    --accent: #A855F7;
+    --green: #22C55E;
+    --amber: #F59E0B;
+    --red: #EF4444;
+    --border: rgba(255,255,255,0.06);
+    --radius-lg: 8px;
+    --radius-xl: 12px;
+    --radius-2xl: 16px;
+    --radius-full: 9999px;
+    --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-mono: 'Geist Mono', 'SF Mono', 'Fira Code', monospace;
+  }
+
+  body {
+    font-family: var(--font-body);
+    background: var(--surface-primary);
+    color: var(--fg-primary);
+    height: 100vh;
+    display: flex;
+    overflow: hidden;
+  }
+
+  /* Sidebar */
+  .sidebar {
+    width: 240px;
+    min-width: 240px;
+    background: var(--surface-secondary);
+    padding: 24px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .logo-icon {
+    width: 32px;
+    height: 32px;
+    background: var(--accent);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .logo-icon svg { width: 18px; height: 18px; stroke: white; fill: none; }
+
+  .logo-text {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--fg-primary);
+  }
+
+  .nav-label {
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--fg-muted);
+    font-family: var(--font-mono);
+    letter-spacing: 1.2px;
+    margin-bottom: 4px;
+  }
+
+  .nav-section { display: flex; flex-direction: column; gap: 4px; }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    color: var(--fg-secondary);
+    text-decoration: none;
+    transition: background 0.15s;
+  }
+
+  .nav-item:hover { background: rgba(255,255,255,0.05); }
+  .nav-item.active { background: rgba(168,85,247,0.1); color: var(--accent); }
+  .nav-item.active svg { stroke: var(--accent); }
+  .nav-item svg { width: 18px; height: 18px; stroke: var(--fg-muted); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* Main content */
+  .main {
+    flex: 1;
+    padding: 32px 40px;
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+    overflow-y: auto;
+  }
+
+  /* Header */
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .header h1 { font-size: 24px; font-weight: 700; }
+  .header p { font-size: 13px; color: var(--fg-muted); margin-top: 4px; }
+
+  .btn-create {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    border-radius: var(--radius-full);
+    background: var(--accent);
+    color: white;
+    font-size: 14px;
+    font-weight: 600;
+    font-family: var(--font-body);
+    border: none;
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+
+  .btn-create:hover { opacity: 0.9; }
+  .btn-create svg { width: 16px; height: 16px; stroke: white; fill: none; stroke-width: 2; }
+
+  /* Stats */
+  .stats-row {
+    display: flex;
+    gap: 16px;
+  }
+
+  .stat-card {
+    flex: 1;
+    background: var(--surface-secondary);
+    border-radius: var(--radius-2xl);
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .stat-label {
+    font-size: 12px;
+    color: var(--fg-muted);
+    font-family: var(--font-mono);
+  }
+
+  .stat-value {
+    font-size: 32px;
+    font-weight: 700;
+    font-family: var(--font-mono);
+  }
+
+  .stat-value.green { color: var(--green); }
+  .stat-value.amber { color: var(--amber); }
+  .stat-value.purple { color: var(--accent); }
+
+  /* Table */
+  .table-container {
+    flex: 1;
+    background: var(--surface-secondary);
+    border-radius: var(--radius-2xl);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .table-header, .table-row {
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    height: 48px;
+    min-height: 48px;
+  }
+
+  .table-header {
+    border-bottom: 1px solid var(--border);
+  }
+
+  .table-row {
+    height: 52px;
+    min-height: 52px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+  }
+
+  .table-row:last-child { border-bottom: none; }
+
+  .table-body {
+    overflow-y: auto;
+    flex: 1;
+  }
+
+  .th {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--fg-muted);
+    font-family: var(--font-mono);
+    letter-spacing: 0.5px;
+  }
+
+  .col-name { width: 180px; }
+  .col-tenant { width: 130px; }
+  .col-branch { width: 150px; }
+  .col-ttl { width: 80px; }
+  .col-status { width: 110px; }
+  .col-created { width: 140px; }
+  .col-actions { flex: 1; }
+
+  .td {
+    font-size: 13px;
+    font-family: var(--font-mono);
+    color: var(--fg-secondary);
+  }
+
+  .td.name {
+    font-family: var(--font-body);
+    font-weight: 500;
+    color: var(--fg-primary);
+  }
+
+  .td.created { color: var(--fg-muted); }
+
+  /* Badges */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: var(--radius-full);
+    font-size: 11px;
+    font-family: var(--font-mono);
+  }
+
+  .badge-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+  }
+
+  .badge.running { background: rgba(34,197,94,0.1); color: var(--green); }
+  .badge.running .badge-dot { background: var(--green); }
+  .badge.expiring { background: rgba(245,158,11,0.1); color: var(--amber); }
+  .badge.expiring .badge-dot { background: var(--amber); }
+  .badge.expired { background: rgba(239,68,68,0.1); color: var(--red); }
+  .badge.expired .badge-dot { background: var(--red); }
+  .badge.syncing { background: rgba(168,85,247,0.1); color: var(--accent); }
+  .badge.syncing .badge-dot { background: var(--accent); }
+  .badge.unknown { background: rgba(255,255,255,0.06); color: var(--fg-muted); }
+  .badge.unknown .badge-dot { background: var(--fg-muted); }
+
+  /* Action buttons */
+  .actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .btn-sm {
+    padding: 5px 12px;
+    border-radius: var(--radius-lg);
+    font-size: 11px;
+    font-weight: 500;
+    font-family: var(--font-body);
+    border: none;
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+
+  .btn-sm:hover { opacity: 0.8; }
+
+  .btn-connect { background: rgba(255,255,255,0.06); color: var(--fg-secondary); }
+  .btn-extend { background: rgba(245,158,11,0.1); color: var(--amber); }
+
+  .btn-delete {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+  }
+
+  .btn-delete svg { width: 16px; height: 16px; stroke: var(--fg-muted); fill: none; stroke-width: 2; }
+  .btn-delete:hover svg { stroke: var(--red); }
+
+  /* Modal */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    backdrop-filter: blur(4px);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .modal-overlay.open { display: flex; }
+
+  .modal {
+    background: var(--surface-secondary);
+    border-radius: var(--radius-2xl);
+    padding: 32px;
+    width: 440px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    border: 1px solid var(--border);
+  }
+
+  .modal h2 { font-size: 20px; font-weight: 700; }
+
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .form-group label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--fg-muted);
+    font-family: var(--font-mono);
+  }
+
+  .form-group input, .form-group select {
+    background: var(--surface-primary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 10px 14px;
+    font-size: 14px;
+    font-family: var(--font-body);
+    color: var(--fg-primary);
+    outline: none;
+    transition: border-color 0.15s;
+  }
+
+  .form-group input:focus, .form-group select:focus {
+    border-color: var(--accent);
+  }
+
+  .form-group select option { background: var(--surface-primary); }
+
+  .modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 4px;
+  }
+
+  .btn-cancel {
+    padding: 10px 20px;
+    border-radius: var(--radius-full);
+    background: rgba(255,255,255,0.06);
+    color: var(--fg-secondary);
+    font-size: 14px;
+    font-weight: 500;
+    font-family: var(--font-body);
+    border: none;
+    cursor: pointer;
+  }
+
+  .btn-submit {
+    padding: 10px 20px;
+    border-radius: var(--radius-full);
+    background: var(--accent);
+    color: white;
+    font-size: 14px;
+    font-weight: 600;
+    font-family: var(--font-body);
+    border: none;
+    cursor: pointer;
+  }
+
+  .btn-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* Connect modal */
+  .connect-cmd {
+    background: var(--surface-primary);
+    border-radius: var(--radius-lg);
+    padding: 14px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--green);
+    word-break: break-all;
+    user-select: all;
+  }
+
+  /* Empty state */
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+    gap: 12px;
+    color: var(--fg-muted);
+  }
+
+  .empty-state svg { width: 48px; height: 48px; stroke: var(--fg-muted); fill: none; opacity: 0.4; }
+  .empty-state p { font-size: 14px; }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: var(--surface-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    padding: 14px 20px;
+    font-size: 13px;
+    color: var(--fg-primary);
+    z-index: 200;
+    display: none;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+  }
+
+  .toast.show { display: block; }
+  .toast.error { border-color: var(--red); color: var(--red); }
+</style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<aside class="sidebar">
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" stroke-width="2"/><polyline points="3.27 6.96 12 12.01 20.73 6.96" stroke-width="2"/><line x1="12" y1="22.08" x2="12" y2="12" stroke-width="2"/></svg>
+    </div>
+    <span class="logo-text">vCluster</span>
+  </div>
+
+  <nav class="nav-section">
+    <div class="nav-label">NAVIGATION</div>
+    <a class="nav-item active" href="#">
+      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      Dashboard
+    </a>
+    <a class="nav-item" href="#">
+      <svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+      Clusters
+    </a>
+    <a class="nav-item" href="#">
+      <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      Tenants
+    </a>
+    <a class="nav-item" href="#">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      Settings
+    </a>
+  </nav>
+</aside>
+
+<!-- Main content -->
+<main class="main">
+  <div class="header">
+    <div>
+      <h1>Ephemeral Environments</h1>
+      <p>Manage your vCluster environments across tenants</p>
+    </div>
+    <button class="btn-create" onclick="openCreateModal()">
+      <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Create vCluster
+    </button>
+  </div>
+
+  <div class="stats-row">
+    <div class="stat-card">
+      <span class="stat-label">Total Clusters</span>
+      <span class="stat-value" id="stat-total">-</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">Running</span>
+      <span class="stat-value green" id="stat-running">-</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">Expiring Soon</span>
+      <span class="stat-value amber" id="stat-expiring">-</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">Tenants</span>
+      <span class="stat-value purple" id="stat-tenants">-</span>
+    </div>
+  </div>
+
+  <div class="table-container">
+    <div class="table-header">
+      <span class="th col-name">Name</span>
+      <span class="th col-tenant">Tenant</span>
+      <span class="th col-branch">Branch</span>
+      <span class="th col-ttl">TTL</span>
+      <span class="th col-status">Status</span>
+      <span class="th col-created">Created</span>
+      <span class="th col-actions">Actions</span>
+    </div>
+    <div class="table-body" id="table-body">
+      <div class="empty-state" id="empty-state">
+        <svg viewBox="0 0 24 24" stroke-width="1.5"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+        <p>No environments yet. Create one to get started.</p>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- Create Modal -->
+<div class="modal-overlay" id="create-modal">
+  <div class="modal">
+    <h2>Create vCluster</h2>
+    <div class="form-group">
+      <label>NAME</label>
+      <input type="text" id="env-name" placeholder="e.g. feat-login">
+    </div>
+    <div class="form-group">
+      <label>TENANT</label>
+      <select id="env-tenant"></select>
+    </div>
+    <div class="form-group">
+      <label>BRANCH</label>
+      <input type="text" id="env-branch" placeholder="e.g. feat/login-flow">
+    </div>
+    <div class="form-group">
+      <label>TTL</label>
+      <select id="env-ttl">
+        <option value="1h">1 hour</option>
+        <option value="2h" selected>2 hours</option>
+        <option value="4h">4 hours</option>
+        <option value="8h">8 hours</option>
+        <option value="12h">12 hours</option>
+        <option value="24h">24 hours</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeCreateModal()">Cancel</button>
+      <button class="btn-submit" id="btn-create-submit" onclick="submitCreate()">Create</button>
+    </div>
+  </div>
+</div>
+
+<!-- Connect Modal -->
+<div class="modal-overlay" id="connect-modal">
+  <div class="modal">
+    <h2>Connect to vCluster</h2>
+    <p style="font-size:13px;color:var(--fg-muted);">Run this command to connect:</p>
+    <div class="connect-cmd" id="connect-cmd"></div>
+    <p style="font-size:12px;color:var(--fg-muted);margin-top:-8px">Or use kubectl with port-forward:</p>
+    <div class="connect-cmd" id="connect-kubectl"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeConnectModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+  let environments = [];
+  let tenants = [];
+
+  async function fetchData() {
+    try {
+      const [envRes, tenantRes] = await Promise.all([
+        fetch('/api/environments'),
+        fetch('/api/tenants')
+      ]);
+      environments = await envRes.json();
+      tenants = await tenantRes.json();
+      render();
+    } catch (e) {
+      showToast('Failed to fetch data: ' + e.message, true);
+    }
+  }
+
+  function render() {
+    // Stats
+    const total = environments.length;
+    const running = environments.filter(e => e.status === 'Running').length;
+    const expiring = environments.filter(e => e.status === 'Expiring').length;
+    const uniqueTenants = new Set(environments.map(e => e.tenant)).size || tenants.length;
+
+    document.getElementById('stat-total').textContent = total;
+    document.getElementById('stat-running').textContent = running;
+    document.getElementById('stat-expiring').textContent = expiring;
+    document.getElementById('stat-tenants').textContent = uniqueTenants;
+
+    // Table
+    const tbody = document.getElementById('table-body');
+    const empty = document.getElementById('empty-state');
+
+    if (environments.length === 0) {
+      tbody.innerHTML = `<div class="empty-state">
+        <svg viewBox="0 0 24 24" stroke-width="1.5"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+        <p>No environments yet. Create one to get started.</p>
+      </div>`;
+      return;
+    }
+
+    tbody.innerHTML = environments.map(env => `
+      <div class="table-row">
+        <span class="td name col-name">${esc(env.name)}</span>
+        <span class="td col-tenant">${esc(env.tenant)}</span>
+        <span class="td col-branch">${esc(env.branch)}</span>
+        <span class="td col-ttl">${esc(env.ttl)}</span>
+        <span class="td col-status">
+          <span class="badge ${env.status.toLowerCase()}">
+            <span class="badge-dot"></span>
+            ${esc(env.status)}
+          </span>
+        </span>
+        <span class="td created col-created">${esc(env.age)}</span>
+        <span class="td col-actions">
+          <span class="actions">
+            ${env.status === 'Expiring' ? `<button class="btn-sm btn-extend" onclick="extendEnv('${esc(env.tenant)}','${esc(env.name)}')">Extend</button>` : ''}
+            <button class="btn-sm btn-connect" onclick="showConnect('${esc(env.name)}','${esc(env.tenant)}')">Connect</button>
+            <button class="btn-delete" onclick="deleteEnv('${esc(env.tenant)}','${esc(env.name)}')" title="Delete">
+              <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            </button>
+          </span>
+        </span>
+      </div>
+    `).join('');
+  }
+
+  function openCreateModal() {
+    const select = document.getElementById('env-tenant');
+    select.innerHTML = tenants.map(t => `<option value="${esc(t)}">${esc(t)}</option>`).join('');
+    document.getElementById('create-modal').classList.add('open');
+    document.getElementById('env-name').focus();
+  }
+
+  function closeCreateModal() {
+    document.getElementById('create-modal').classList.remove('open');
+    document.getElementById('env-name').value = '';
+    document.getElementById('env-branch').value = '';
+  }
+
+  async function submitCreate() {
+    const name = document.getElementById('env-name').value.trim();
+    const tenant = document.getElementById('env-tenant').value;
+    const branch = document.getElementById('env-branch').value.trim();
+    const ttl = document.getElementById('env-ttl').value;
+
+    if (!name || !tenant || !branch) {
+      showToast('Please fill in all fields', true);
+      return;
+    }
+
+    const btn = document.getElementById('btn-create-submit');
+    btn.disabled = true;
+    btn.textContent = 'Creating...';
+
+    try {
+      const res = await fetch('/api/environments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, tenant, branch, ttl })
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text);
+      }
+
+      showToast(`Environment "${name}" created. ArgoCD will sync shortly.`);
+      closeCreateModal();
+      await fetchData();
+    } catch (e) {
+      showToast('Failed to create: ' + e.message, true);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Create';
+    }
+  }
+
+  async function deleteEnv(tenant, name) {
+    if (!confirm(`Delete environment "${name}" from tenant "${tenant}"?`)) return;
+
+    try {
+      const res = await fetch(`/api/environments/${encodeURIComponent(tenant)}/${encodeURIComponent(name)}`, {
+        method: 'DELETE'
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text);
+      }
+
+      showToast(`Environment "${name}" deleted.`);
+      await fetchData();
+    } catch (e) {
+      showToast('Failed to delete: ' + e.message, true);
+    }
+  }
+
+  function showConnect(name, tenant) {
+    const ns = `tenant-${tenant}`;
+    document.getElementById('connect-cmd').textContent = `vcluster connect ${name} -n ${ns}`;
+    document.getElementById('connect-kubectl').textContent =
+      `kubectl get secret vc-${name} -n ${ns} -o jsonpath='{.data.config}' | base64 -d > /tmp/vc-${name}.yaml && ` +
+      `kubectl port-forward svc/${name} -n ${ns} 8443:443 &`;
+    document.getElementById('connect-modal').classList.add('open');
+  }
+
+  function closeConnectModal() {
+    document.getElementById('connect-modal').classList.remove('open');
+  }
+
+  function extendEnv(tenant, name) {
+    showToast('Extend is not yet implemented — recreate with a longer TTL.', true);
+  }
+
+  function showToast(msg, isError = false) {
+    const toast = document.getElementById('toast');
+    toast.textContent = msg;
+    toast.className = 'toast show' + (isError ? ' error' : '');
+    setTimeout(() => toast.className = 'toast', 4000);
+  }
+
+  function esc(str) {
+    if (!str) return '';
+    const d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+  }
+
+  // Initial load + auto-refresh every 15s
+  fetchData();
+  setInterval(fetchData, 15000);
+</script>
+
+</body>
+</html>
