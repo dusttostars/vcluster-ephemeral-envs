@@ -1,27 +1,16 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
-	"time"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 )
-
-var jobGVR = schema.GroupVersionResource{
-	Group:    "batch",
-	Version:  "v1",
-	Resource: "jobs",
-}
 
 type deployRequest struct {
 	Branch    string `json:"branch"`
@@ -30,6 +19,7 @@ type deployRequest struct {
 
 var slugRe = regexp.MustCompile(`[^a-zA-Z0-9]+`)
 
+// slugify converts a branch name to a valid image tag / release name.
 func slugify(s string) string {
 	slug := slugRe.ReplaceAllString(s, "-")
 	slug = strings.Trim(slug, "-")
@@ -60,26 +50,74 @@ func (h *handler) deployBranch(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	slug := slugify(req.Branch)
 	imageTag := slug
-	// Kaniko pushes to the in-cluster registry via DNS.
-	kanikoDest := fmt.Sprintf("registry.container-registry.svc.cluster.local:5000/app:%s", imageTag)
-	// Pods pull from localhost:32000 (MicroK8s NodePort).
 	imageRepo := "localhost:32000/app"
 	imageRef := fmt.Sprintf("%s:%s", imageRepo, imageTag)
-	repoURL := fmt.Sprintf("https://github.com/%s.git", h.githubRepo)
 
-	// 1. Build image with Kaniko Job.
-	jobName := fmt.Sprintf("build-%s-%d", slug, time.Now().Unix()%100000)
-	if len(jobName) > 63 {
-		jobName = jobName[:63]
+	// 1. Clone the branch into a temp directory.
+	cloneDir, err := os.MkdirTemp("", "deploy-clone-*")
+	if err != nil {
+		http.Error(w, fmt.Sprintf("creating temp dir: %v", err), http.StatusInternalServerError)
+		return
 	}
+	defer os.RemoveAll(cloneDir)
 
-	log.Printf("deploy: creating kaniko build job %s for branch %s", jobName, req.Branch)
-	if err := h.runKanikoBuild(ctx, jobName, repoURL, req.Branch, kanikoDest); err != nil {
-		http.Error(w, fmt.Sprintf("building image: %v", err), http.StatusInternalServerError)
+	repoURL := fmt.Sprintf("https://github.com/%s.git", h.githubRepo)
+	cloneCmd := exec.CommandContext(ctx, "git", "clone",
+		"--depth", "1",
+		"--branch", req.Branch,
+		repoURL,
+		cloneDir,
+	)
+	if out, err := cloneCmd.CombinedOutput(); err != nil {
+		log.Printf("git clone failed: %s", string(out))
+		http.Error(w, fmt.Sprintf("cloning branch %s: %s", req.Branch, string(out)), http.StatusInternalServerError)
 		return
 	}
 
-	// 2. Install the app chart into the vcluster.
+	// 2. Determine build context — prefer app/ subdirectory if it exists.
+	buildContext := cloneDir
+	dockerfile := "Dockerfile"
+	if _, err := os.Stat(filepath.Join(cloneDir, "app", "Dockerfile")); err == nil {
+		buildContext = filepath.Join(cloneDir, "app")
+	} else {
+		for _, candidate := range []string{"Dockerfile", "Dockerfile.cli"} {
+			if _, err := os.Stat(filepath.Join(cloneDir, candidate)); err == nil {
+				dockerfile = candidate
+				break
+			}
+		}
+	}
+
+	// 3. Build the Docker image.
+	log.Printf("deploy: building image %s from %s/%s", imageRef, buildContext, dockerfile)
+	buildCmd := exec.CommandContext(ctx, "docker", "build",
+		"--no-cache",
+		"-t", imageRef,
+		"-f", filepath.Join(buildContext, dockerfile),
+		buildContext,
+	)
+	if out, err := buildCmd.CombinedOutput(); err != nil {
+		log.Printf("docker build failed: %s", string(out))
+		http.Error(w, fmt.Sprintf("building image: %s", string(out)), http.StatusInternalServerError)
+		return
+	}
+
+	// 4. Push to MicroK8s built-in registry (localhost:32000).
+	pushCmd := exec.CommandContext(ctx, "docker", "push", imageRef)
+	if out, err := pushCmd.CombinedOutput(); err != nil {
+		log.Printf("docker push failed, trying microk8s import: %s", string(out))
+		// Fallback: save and import into microk8s containerd.
+		saveCmd := exec.CommandContext(ctx, "docker", "save", imageRef)
+		importCmd := exec.CommandContext(ctx, "microk8s", "ctr", "image", "import", "-")
+		importCmd.Stdin, _ = saveCmd.StdoutPipe()
+		if err := importCmd.Start(); err == nil {
+			if err := saveCmd.Run(); err == nil {
+				importCmd.Wait()
+			}
+		}
+	}
+
+	// 5. Install the app chart into the vcluster.
 	kubeconfig, cleanup, err := h.getVClusterKubeconfig(ctx, tenant, name)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("getting kubeconfig: %v", err), http.StatusInternalServerError)
@@ -90,6 +128,11 @@ func (h *handler) deployBranch(w http.ResponseWriter, r *http.Request) {
 	chartPath := filepath.Join(h.repoPath, "charts", "app")
 	releaseName := fmt.Sprintf("app-%s", slug)
 
+	// Get the short commit SHA from the cloned repo.
+	commitCmd := exec.CommandContext(ctx, "git", "-C", cloneDir, "rev-parse", "--short", "HEAD")
+	commitOut, _ := commitCmd.Output()
+	commitSHA := strings.TrimSpace(string(commitOut))
+
 	helmArgs := []string{
 		"upgrade", "--install", releaseName, chartPath,
 		"--kubeconfig", kubeconfig,
@@ -99,7 +142,7 @@ func (h *handler) deployBranch(w http.ResponseWriter, r *http.Request) {
 		"--set", fmt.Sprintf("image.tag=%s", imageTag),
 		"--set", "image.pullPolicy=Always",
 		"--set", fmt.Sprintf("gitBranch=%s", req.Branch),
-		"--set", fmt.Sprintf("gitCommit=%s", slug),
+		"--set", fmt.Sprintf("gitCommit=%s", commitSHA),
 	}
 
 	helmCmd := exec.CommandContext(ctx, "helm", helmArgs...)
@@ -116,154 +159,4 @@ func (h *handler) deployBranch(w http.ResponseWriter, r *http.Request) {
 		"image":   imageRef,
 		"release": releaseName,
 	})
-}
-
-// runKanikoBuild creates a Kaniko Job that clones the repo, builds the image
-// from app/Dockerfile, and pushes to the in-cluster registry.
-func (h *handler) runKanikoBuild(ctx context.Context, jobName, repoURL, branch, destination string) error {
-	buildNS := "ephemeral-system"
-	backoffLimit := int64(0)
-	ttl := int64(300)
-
-	job := &unstructured.Unstructured{
-		Object: map[string]interface{}{
-			"apiVersion": "batch/v1",
-			"kind":       "Job",
-			"metadata": map[string]interface{}{
-				"name":      jobName,
-				"namespace": buildNS,
-			},
-			"spec": map[string]interface{}{
-				"backoffLimit":            backoffLimit,
-				"ttlSecondsAfterFinished": ttl,
-				"template": map[string]interface{}{
-					"spec": map[string]interface{}{
-						"restartPolicy": "Never",
-						"initContainers": []interface{}{
-							map[string]interface{}{
-								"name":  "clone",
-								"image": "alpine/git:latest",
-								"command": []interface{}{
-									"git", "clone", "--depth", "1",
-									"--branch", branch,
-									repoURL, "/workspace",
-								},
-								"volumeMounts": []interface{}{
-									map[string]interface{}{
-										"name":      "workspace",
-										"mountPath": "/workspace",
-									},
-								},
-							},
-						},
-						"containers": []interface{}{
-							map[string]interface{}{
-								"name":  "kaniko",
-								"image": "gcr.io/kaniko-project/executor:latest",
-								"args": []interface{}{
-									"--dockerfile=/workspace/app/Dockerfile",
-									"--context=/workspace/app",
-									fmt.Sprintf("--destination=%s", destination),
-									"--insecure",
-									"--cache=false",
-								},
-								"volumeMounts": []interface{}{
-									map[string]interface{}{
-										"name":      "workspace",
-										"mountPath": "/workspace",
-									},
-								},
-								"resources": map[string]interface{}{
-									"limits": map[string]interface{}{
-										"cpu":    "1",
-										"memory": "1Gi",
-									},
-									"requests": map[string]interface{}{
-										"cpu":    "200m",
-										"memory": "256Mi",
-									},
-								},
-							},
-						},
-						"volumes": []interface{}{
-							map[string]interface{}{
-								"name":     "workspace",
-								"emptyDir": map[string]interface{}{},
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-
-	_, err := h.client.Resource(jobGVR).Namespace(buildNS).Create(ctx, job, metav1.CreateOptions{})
-	if err != nil {
-		return fmt.Errorf("creating kaniko job: %w", err)
-	}
-
-	log.Printf("deploy: kaniko job %s created, waiting for completion...", jobName)
-
-	deadline := time.Now().Add(5 * time.Minute)
-	for time.Now().Before(deadline) {
-		j, err := h.client.Resource(jobGVR).Namespace(buildNS).Get(ctx, jobName, metav1.GetOptions{})
-		if err != nil {
-			return fmt.Errorf("checking job status: %w", err)
-		}
-
-		status, ok, _ := nestedMap(j.Object, "status")
-		if !ok {
-			time.Sleep(5 * time.Second)
-			continue
-		}
-
-		// Check conditions for Complete/Failed.
-		if conditions, ok := status["conditions"].([]interface{}); ok {
-			for _, c := range conditions {
-				if cm, ok := c.(map[string]interface{}); ok {
-					ctype, _ := cm["type"].(string)
-					cstatus, _ := cm["status"].(string)
-					if ctype == "Complete" && cstatus == "True" {
-						log.Printf("deploy: kaniko job %s completed", jobName)
-						return nil
-					}
-					if ctype == "Failed" && cstatus == "True" {
-						reason, _ := cm["reason"].(string)
-						return fmt.Errorf("kaniko build failed: %s", reason)
-					}
-				}
-			}
-		}
-
-		// Also check succeeded/failed counts.
-		if succeeded, ok := status["succeeded"]; ok {
-			if s, ok := succeeded.(int64); ok && s > 0 {
-				return nil
-			}
-		}
-		if failed, ok := status["failed"]; ok {
-			if f, ok := failed.(int64); ok && f > 0 {
-				return fmt.Errorf("kaniko build job failed")
-			}
-		}
-
-		time.Sleep(5 * time.Second)
-	}
-
-	return fmt.Errorf("kaniko build timed out after 5 minutes")
-}
-
-func nestedMap(obj map[string]interface{}, fields ...string) (map[string]interface{}, bool, error) {
-	current := obj
-	for _, f := range fields {
-		next, ok := current[f]
-		if !ok {
-			return nil, false, nil
-		}
-		current, ok = next.(map[string]interface{})
-		if !ok {
-			return nil, false, nil
-		}
-	}
-	return current, true, nil
 }
