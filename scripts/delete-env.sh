@@ -19,8 +19,11 @@ rm "$MANIFEST"
 cd "$REPO_ROOT"
 git config user.email "ephemeral-bot@users.noreply.github.com"
 git config user.name "ephemeral-bot"
-git add "manifests/environments/${TENANT}/${ENV_NAME}.yaml"
+git fetch origin master
+git checkout master
+git pull origin master
+git rm -f "manifests/environments/${TENANT}/${ENV_NAME}.yaml"
 git commit -m "env: delete ${ENV_NAME} for tenant ${TENANT}"
-git push origin HEAD:master
+git push origin master
 
 echo "==> Done! ArgoCD will prune the vcluster."
