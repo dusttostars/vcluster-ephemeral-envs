@@ -2,8 +2,8 @@ apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   labels:
-    ephemeral.io/branch: feat-something
-    ephemeral.io/created-at: 20260413T064417Z
+    ephemeral.io/branch: asss
+    ephemeral.io/created-at: 20260413T064447Z
     ephemeral.io/managed-by: ephemeral-controller
     ephemeral.io/tenant: team-a
     ephemeral.io/ttl: 2h0m0s
