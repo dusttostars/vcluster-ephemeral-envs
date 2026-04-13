@@ -45,23 +45,83 @@ jobs:
             "${{ steps.branch.outputs.branch }}" \
             "2h"
 
+      - name: Wait for vCluster to be ready
+        run: |
+          TENANT="${{ steps.tenant.outputs.tenant }}"
+          ENV_NAME="${{ steps.branch.outputs.env_name }}"
+          NS="tenant-${TENANT}"
+          echo "Waiting for vcluster-${ENV_NAME} in ${NS}..."
+          for i in $(seq 1 60); do
+            if kubectl get pod "vcluster-${ENV_NAME}-0" -n "$NS" -o jsonpath='{.status.phase}' 2>/dev/null | grep -q Running; then
+              echo "vCluster is running!"
+              # Wait a bit more for the API server inside to be ready
+              sleep 10
+              exit 0
+            fi
+            echo "  Attempt $i/60 - waiting 10s..."
+            sleep 10
+          done
+          echo "Timed out waiting for vCluster"
+          exit 1
+
+      - name: Build and deploy app
+        id: deploy
+        run: |
+          TENANT="${{ steps.tenant.outputs.tenant }}"
+          ENV_NAME="${{ steps.branch.outputs.env_name }}"
+          BRANCH="${{ steps.branch.outputs.branch }}"
+          DASHBOARD_URL="http://dashboard.ephemeral-system.svc.cluster.local:8090"
+
+          # Try dashboard first, fall back to localhost if not deployed as a service
+          DEPLOY_URL="${DASHBOARD_URL}/api/environments/${TENANT}/${ENV_NAME}/deploy"
+          echo "Deploying branch ${BRANCH} into ${ENV_NAME}..."
+
+          RESPONSE=$(curl -sf -X POST "$DEPLOY_URL" \
+            -H "Content-Type: application/json" \
+            -d "{\"branch\":\"${BRANCH}\",\"namespace\":\"default\"}" \
+            --connect-timeout 5 \
+            --max-time 300 2>&1) || {
+            # Dashboard might not be running as a K8s service, try localhost
+            DEPLOY_URL="http://localhost:8090/api/environments/${TENANT}/${ENV_NAME}/deploy"
+            RESPONSE=$(curl -sf -X POST "$DEPLOY_URL" \
+              -H "Content-Type: application/json" \
+              -d "{\"branch\":\"${BRANCH}\",\"namespace\":\"default\"}" \
+              --max-time 300 2>&1) || {
+              echo "::warning::Auto-deploy failed. You can deploy manually from the dashboard."
+              echo "deploy_status=failed" >> "$GITHUB_OUTPUT"
+              exit 0
+            }
+          }
+          echo "Deploy response: $RESPONSE"
+          echo "deploy_status=success" >> "$GITHUB_OUTPUT"
+
       - name: Comment PR with environment info
         uses: actions/github-script@v7
         with:
           script: |
             const tenant = '${{ steps.tenant.outputs.tenant }}';
             const envName = '${{ steps.branch.outputs.env_name }}';
+            const branch = '${{ steps.branch.outputs.branch }}';
             const ns = `tenant-${tenant}`;
+            const deployStatus = '${{ steps.deploy.outputs.deploy_status }}';
+            const deployInfo = deployStatus === 'success'
+              ? `| **App** | Deployed from \`${branch}\` |\n`
+              : `| **App** | Deploy pending — use dashboard to deploy |\n`;
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `## Ephemeral Environment Created\n\n` +
+              body: `## Ephemeral Environment Ready\n\n` +
                     `| Field | Value |\n|---|---|\n` +
                     `| **Name** | \`${envName}\` |\n` +
                     `| **Tenant** | \`${tenant}\` |\n` +
                     `| **Namespace** | \`${ns}\` |\n` +
-                    `| **TTL** | 2h |\n\n` +
-                    `**Connect:** \`vcluster connect ${envName} -n ${ns}\`\n\n` +
-                    `ArgoCD will sync this environment shortly.`
+                    `| **TTL** | 2h |\n` +
+                    deployInfo + `\n` +
+                    `**Connect:**\n` +
+                    `\`\`\`bash\n` +
+                    `vcluster connect vcluster-${envName} -n ${ns}\n` +
+                    `kubectl port-forward svc/app-${envName} 9090:80\n` +
+                    `# Open http://localhost:9090\n` +
+                    `\`\`\`\n`
             });
