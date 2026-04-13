@@ -778,6 +778,7 @@
           <span class="actions">
             ${env.status === 'Expiring' ? `<button class="btn-sm btn-extend" onclick="extendEnv('${esc(env.tenant)}','${esc(env.name)}')">Extend</button>` : ''}
             ${env.status === 'Running' ? `<button class="btn-sm btn-extend" onclick="openDeployModal('${esc(env.tenant)}','${esc(env.name)}')">Deploy</button>` : ''}
+            ${env.status === 'Running' ? `<button class="btn-sm btn-connect" style="background:rgba(34,197,94,0.1);color:var(--green)" onclick="openAppProxy('${esc(env.tenant)}','${esc(env.name)}')">Open</button>` : ''}
             <button class="btn-sm btn-connect" onclick="openChartsPanel('${esc(env.tenant)}','${esc(env.name)}')">Charts</button>
             <button class="btn-sm btn-connect" onclick="showConnect('${esc(env.name)}','${esc(env.tenant)}')">Connect</button>
             <button class="btn-delete" onclick="deleteEnv('${esc(env.tenant)}','${esc(env.name)}')" title="Delete">
@@ -922,6 +923,39 @@
     const d = document.createElement('div');
     d.textContent = str;
     return d.innerHTML;
+  }
+
+  // ---- App proxy feature ----
+
+  async function openAppProxy(tenant, name) {
+    try {
+      const res = await fetch(`/api/environments/${encodeURIComponent(tenant)}/${encodeURIComponent(name)}/apps`);
+      if (!res.ok) throw new Error(await res.text());
+      const apps = await res.json();
+
+      // Filter to HTTP-serving apps (port 80, 8080, 3000).
+      const httpApps = apps.filter(a => ['80', '8080', '3000', '8090'].includes(a.port));
+
+      if (httpApps.length === 0) {
+        showToast('No web apps found. Deploy one first.', true);
+        return;
+      }
+
+      if (httpApps.length === 1) {
+        window.open(httpApps[0].proxyUrl, '_blank');
+        return;
+      }
+
+      // Multiple apps: show a picker.
+      const choice = httpApps.map((a, i) => `${i+1}. ${a.name} (:${a.port})`).join('\n');
+      const pick = prompt(`Multiple apps found. Enter number:\n${choice}`);
+      const idx = parseInt(pick) - 1;
+      if (idx >= 0 && idx < httpApps.length) {
+        window.open(httpApps[idx].proxyUrl, '_blank');
+      }
+    } catch (e) {
+      showToast('Failed to open app: ' + e.message, true);
+    }
   }
 
   // ---- Deploy feature ----

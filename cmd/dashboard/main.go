@@ -69,6 +69,10 @@ func main() {
 	// GitHub routes
 	mux.HandleFunc("GET /api/github/branches", h.listBranches)
 
+	// App proxy and discovery routes
+	mux.HandleFunc("GET /api/environments/{tenant}/{name}/apps", h.listDeployedApps)
+	mux.HandleFunc("GET /app/{tenant}/{name}/{rest...}", h.proxyApp)
+
 	// Deploy routes
 	mux.HandleFunc("POST /api/environments/{tenant}/{name}/deploy", h.deployBranch)
 
