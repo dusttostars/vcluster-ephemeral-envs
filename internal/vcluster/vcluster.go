@@ -65,6 +65,21 @@ type AutomatedSync struct {
 	SelfHeal bool `json:"selfHeal"`
 }
 
+// sanitizeLabel replaces characters invalid in Kubernetes label values
+// (e.g. slashes) with dashes.
+func sanitizeLabel(s string) string {
+	var b []byte
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' || c == '_' || c == '.' {
+			b = append(b, c)
+		} else {
+			b = append(b, '-')
+		}
+	}
+	return string(b)
+}
+
 // NewEnvironment creates a new ephemeral environment definition.
 func NewEnvironment(name, tenant, branch string, ttl time.Duration) *Environment {
 	return &Environment{
@@ -74,10 +89,10 @@ func NewEnvironment(name, tenant, branch string, ttl time.Duration) *Environment
 		TTL:       ttl,
 		CreatedAt: time.Now().UTC(),
 		Labels: map[string]string{
-			"ephemeral.io/tenant":     tenant,
-			"ephemeral.io/branch":     branch,
+			"ephemeral.io/tenant":     sanitizeLabel(tenant),
+			"ephemeral.io/branch":     sanitizeLabel(branch),
 			"ephemeral.io/ttl":        ttl.String(),
-			"ephemeral.io/created-at": time.Now().UTC().Format(time.RFC3339),
+			"ephemeral.io/created-at": time.Now().UTC().Format("20060102T150405Z"),
 			"ephemeral.io/managed-by": "ephemeral-controller",
 		},
 	}
