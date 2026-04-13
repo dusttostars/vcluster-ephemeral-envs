@@ -1,0 +1,41 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  labels:
+    ephemeral.io/branch: somthing/something
+    ephemeral.io/created-at: "2026-04-13T00:11:43Z"
+    ephemeral.io/managed-by: ephemeral-controller
+    ephemeral.io/tenant: team-a
+    ephemeral.io/ttl: 8h0m0s
+  name: vcluster-test-1
+  namespace: argocd
+spec:
+  destination:
+    namespace: tenant-team-a
+    server: https://kubernetes.default.svc
+  project: tenant-team-a
+  source:
+    chart: vcluster
+    helm:
+      values: |
+        syncer:
+          extraArgs:
+            - --name=test-1
+            - --out-kube-config-server=https://test-1.tenant-team-a.svc.cluster.local
+        vcluster:
+          image: rancher/k3s:v1.29.1-k3s2
+        sync:
+          nodes:
+            enabled: false
+          persistentvolumes:
+            enabled: false
+          ingresses:
+            enabled: true
+          services:
+            enabled: true
+    repoURL: https://charts.loft.sh
+    targetRevision: 0.19.*
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
