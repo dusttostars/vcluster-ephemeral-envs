@@ -630,7 +630,7 @@
     </div>
     <div class="stats-row">
       <div class="stat-card">
-        <span class="stat-label">Total</span>
+        <span class="stat-label">Total Clusters</span>
         <span class="stat-value" id="cluster-stat-total">-</span>
       </div>
       <div class="stat-card">
@@ -640,6 +640,10 @@
       <div class="stat-card">
         <span class="stat-label">Expired</span>
         <span class="stat-value red" id="cluster-stat-expired">-</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-label">Namespaces</span>
+        <span class="stat-value purple" id="cluster-stat-namespaces">-</span>
       </div>
     </div>
     <div class="detail-grid" id="clusters-grid"></div>
@@ -1359,14 +1363,18 @@
 
   // ---- Clusters view ----
 
-  function renderClusters() {
+  let clusterPods = {};
+
+  async function renderClusters() {
     const total = environments.length;
     const running = environments.filter(e => e.status === 'Running').length;
     const expired = environments.filter(e => e.status === 'Expired').length;
+    const namespaces = new Set(environments.map(e => `tenant-${e.tenant}`));
 
     document.getElementById('cluster-stat-total').textContent = total;
     document.getElementById('cluster-stat-running').textContent = running;
     document.getElementById('cluster-stat-expired').textContent = expired;
+    document.getElementById('cluster-stat-namespaces').textContent = namespaces.size;
 
     const grid = document.getElementById('clusters-grid');
     if (environments.length === 0) {
@@ -1374,23 +1382,42 @@
       return;
     }
 
-    grid.innerHTML = environments.map(env => `
+    // Fetch pod counts per environment
+    for (const env of environments) {
+      try {
+        const res = await fetch(`/api/environments/${encodeURIComponent(env.tenant)}/${encodeURIComponent(env.name)}/apps`);
+        if (res.ok) {
+          const apps = await res.json();
+          clusterPods[env.name] = apps.length;
+        } else {
+          clusterPods[env.name] = 0;
+        }
+      } catch (e) {
+        clusterPods[env.name] = 0;
+      }
+    }
+
+    grid.innerHTML = environments.map(env => {
+      const ns = `tenant-${env.tenant}`;
+      const pods = clusterPods[env.name] || 0;
+      return `
       <div class="detail-card">
         <div class="detail-card-header">
           <span class="detail-card-title">${esc(env.name)}</span>
           <span class="badge ${env.status.toLowerCase()}"><span class="badge-dot"></span>${esc(env.status)}</span>
         </div>
         <div class="detail-card-row"><span class="detail-card-label">Tenant</span><span class="detail-card-value">${esc(env.tenant)}</span></div>
+        <div class="detail-card-row"><span class="detail-card-label">Namespace</span><span class="detail-card-value">${esc(ns)}</span></div>
         <div class="detail-card-row"><span class="detail-card-label">Branch</span><span class="detail-card-value">${esc(env.branch)}</span></div>
-        <div class="detail-card-row"><span class="detail-card-label">Namespace</span><span class="detail-card-value">tenant-${esc(env.tenant)}</span></div>
+        <div class="detail-card-row"><span class="detail-card-label">Synced Services</span><span class="detail-card-value">${pods}</span></div>
         <div class="detail-card-row"><span class="detail-card-label">TTL</span><span class="detail-card-value">${esc(env.ttl)}</span></div>
         <div class="detail-card-row"><span class="detail-card-label">Created</span><span class="detail-card-value">${esc(env.age)}</span></div>
         ${env.status === 'Running' ? `<div style="display:flex;gap:8px;margin-top:4px">
           <button class="btn-sm btn-connect" style="background:rgba(34,197,94,0.1);color:var(--green)" onclick="openAppProxy('${esc(env.tenant)}','${esc(env.name)}')">Open</button>
           <button class="btn-sm btn-connect" onclick="showConnect('${esc(env.name)}','${esc(env.tenant)}')">Connect</button>
         </div>` : ''}
-      </div>
-    `).join('');
+      </div>`;
+    }).join('');
   }
 
   // ---- Tenants view ----
