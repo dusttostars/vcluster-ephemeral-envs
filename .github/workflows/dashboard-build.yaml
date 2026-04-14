@@ -14,6 +14,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Configure insecure registry
+        run: |
+          sudo mkdir -p /etc/docker
+          echo '{"insecure-registries":["localhost:32000"]}' | sudo tee /etc/docker/daemon.json
+          sudo kill -SIGHUP $(pgrep dockerd) || sudo systemctl restart docker || true
+          sleep 2
+
       - name: Build and push dashboard image
         run: |
           docker build -t localhost:32000/dashboard:latest -f Dockerfile.dashboard .
