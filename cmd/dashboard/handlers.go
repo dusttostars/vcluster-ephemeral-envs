@@ -247,6 +247,255 @@ func (h *handler) listTenants(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(tenants)
 }
 
+type tenantDetail struct {
+	Name       string `json:"name"`
+	Namespace  string `json:"namespace"`
+	CPU        string `json:"cpu"`
+	Memory     string `json:"memory"`
+	Pods       string `json:"pods"`
+	EnvCount   int    `json:"envCount"`
+}
+
+func (h *handler) listTenantsDetailed(w http.ResponseWriter, r *http.Request) {
+	tenantsDir := filepath.Join(h.repoPath, "manifests", "tenants")
+	entries, err := os.ReadDir(tenantsDir)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("reading tenants dir: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	// Count environments per tenant.
+	envCounts := map[string]int{}
+	envsDir := filepath.Join(h.repoPath, "manifests", "environments")
+	if envEntries, err := os.ReadDir(envsDir); err == nil {
+		for _, e := range envEntries {
+			if e.IsDir() {
+				files, _ := os.ReadDir(filepath.Join(envsDir, e.Name()))
+				count := 0
+				for _, f := range files {
+					if strings.HasSuffix(f.Name(), ".yaml") {
+						count++
+					}
+				}
+				envCounts[e.Name()] = count
+			}
+		}
+	}
+
+	var details []tenantDetail
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		td := tenantDetail{
+			Name:      name,
+			Namespace: fmt.Sprintf("tenant-%s", name),
+			EnvCount:  envCounts[name],
+		}
+
+		// Read resource quota if available.
+		quotaPath := filepath.Join(tenantsDir, name, "resourcequota.yaml")
+		if data, err := os.ReadFile(quotaPath); err == nil {
+			content := string(data)
+			for _, line := range strings.Split(content, "\n") {
+				line = strings.TrimSpace(line)
+				if strings.HasPrefix(line, "limits.cpu:") {
+					td.CPU = strings.Trim(strings.TrimPrefix(line, "limits.cpu:"), " \"")
+				} else if strings.HasPrefix(line, "limits.memory:") {
+					td.Memory = strings.Trim(strings.TrimPrefix(line, "limits.memory:"), " \"")
+				} else if strings.HasPrefix(line, "pods:") {
+					td.Pods = strings.Trim(strings.TrimPrefix(line, "pods:"), " \"")
+				}
+			}
+		}
+
+		details = append(details, td)
+	}
+
+	if details == nil {
+		details = []tenantDetail{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(details)
+}
+
+type settingsResponse struct {
+	GitHubRepo string `json:"githubRepo"`
+	Registry   string `json:"registry"`
+	RepoPath   string `json:"repoPath"`
+}
+
+func (h *handler) getSettings(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(settingsResponse{
+		GitHubRepo: h.githubRepo,
+		Registry:   "localhost:32000",
+		RepoPath:   h.repoPath,
+	})
+}
+
+type createTenantRequest struct {
+	Name   string `json:"name"`
+	CPU    string `json:"cpu"`
+	Memory string `json:"memory"`
+}
+
+func (h *handler) createTenant(w http.ResponseWriter, r *http.Request) {
+	var req createTenantRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if req.Name == "" {
+		http.Error(w, "name is required", http.StatusBadRequest)
+		return
+	}
+	if req.CPU == "" {
+		req.CPU = "4"
+	}
+	if req.Memory == "" {
+		req.Memory = "8Gi"
+	}
+
+	namespace := fmt.Sprintf("tenant-%s", req.Name)
+	targetDir := filepath.Join(h.repoPath, "manifests", "tenants", req.Name)
+	if err := os.MkdirAll(targetDir, 0755); err != nil {
+		http.Error(w, fmt.Sprintf("creating tenant dir: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	// Namespace
+	nsYAML := fmt.Sprintf(`apiVersion: v1
+kind: Namespace
+metadata:
+  name: %s
+  labels:
+    ephemeral.io/tenant: "%s"
+    ephemeral.io/managed-by: "ephemeral-controller"
+`, namespace, req.Name)
+
+	// ResourceQuota
+	quotaYAML := fmt.Sprintf(`apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: %s-quota
+  namespace: %s
+spec:
+  hard:
+    requests.cpu: "%s"
+    requests.memory: "%s"
+    limits.cpu: "%s"
+    limits.memory: "%s"
+    pods: "50"
+`, req.Name, namespace, req.CPU, req.Memory, req.CPU, req.Memory)
+
+	// Role
+	roleYAML := fmt.Sprintf(`apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: %s-tenant-role
+  namespace: %s
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "services", "configmaps", "secrets", "persistentvolumeclaims"]
+    verbs: ["get", "list", "watch", "create", "update", "delete"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets"]
+    verbs: ["get", "list", "watch", "create", "update", "delete"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingresses"]
+    verbs: ["get", "list", "watch", "create", "update", "delete"]
+`, req.Name, namespace)
+
+	// RoleBinding
+	rbYAML := fmt.Sprintf(`apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: %s-tenant-binding
+  namespace: %s
+subjects:
+  - kind: Group
+    name: "tenant:%s"
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: %s-tenant-role
+`, req.Name, namespace, req.Name, req.Name)
+
+	files := map[string]string{
+		"namespace.yaml":     nsYAML,
+		"resourcequota.yaml": quotaYAML,
+		"role.yaml":          roleYAML,
+		"rolebinding.yaml":   rbYAML,
+	}
+
+	for name, content := range files {
+		if err := os.WriteFile(filepath.Join(targetDir, name), []byte(content), 0644); err != nil {
+			http.Error(w, fmt.Sprintf("writing %s: %v", name, err), http.StatusInternalServerError)
+			return
+		}
+	}
+
+	// ArgoCD AppProject
+	projectsDir := filepath.Join(h.repoPath, "argocd", "projects")
+	os.MkdirAll(projectsDir, 0755)
+
+	repoURL := "https://github.com/" + h.githubRepo + ".git"
+	projectYAML := fmt.Sprintf(`apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: tenant-%s
+  namespace: argocd
+spec:
+  description: "Ephemeral environments for tenant %s"
+  sourceRepos:
+    - "%s"
+    - "https://charts.loft.sh"
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: %s
+  clusterResourceWhitelist:
+    - group: "rbac.authorization.k8s.io"
+      kind: "ClusterRole"
+    - group: "rbac.authorization.k8s.io"
+      kind: "ClusterRoleBinding"
+  namespaceResourceWhitelist:
+    - group: ""
+      kind: "*"
+    - group: "apps"
+      kind: "*"
+    - group: "rbac.authorization.k8s.io"
+      kind: "*"
+`, req.Name, req.Name, repoURL, namespace)
+
+	if err := os.WriteFile(filepath.Join(projectsDir, req.Name+".yaml"), []byte(projectYAML), 0644); err != nil {
+		http.Error(w, fmt.Sprintf("writing project: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	// Environments directory
+	envsDir := filepath.Join(h.repoPath, "manifests", "environments", req.Name)
+	os.MkdirAll(envsDir, 0755)
+	os.WriteFile(filepath.Join(envsDir, ".gitkeep"), []byte{}, 0644)
+
+	// Git commit and push
+	if err := gitCommitPush(r.Context(), h.repoPath, targetDir,
+		fmt.Sprintf("tenant: create %s (cpu=%s, mem=%s)", req.Name, req.CPU, req.Memory),
+	); err != nil {
+		log.Printf("git push failed for tenant %s: %v", req.Name, err)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(map[string]string{
+		"message": fmt.Sprintf("Tenant %s created (namespace: %s)", req.Name, namespace),
+	})
+}
+
 func humanDuration(d time.Duration) string {
 	if d < time.Minute {
 		return fmt.Sprintf("%ds ago", int(d.Seconds()))

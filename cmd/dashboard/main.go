@@ -65,6 +65,9 @@ func main() {
 	mux.HandleFunc("POST /api/environments", h.createEnvironment)
 	mux.HandleFunc("DELETE /api/environments/{tenant}/{name}", h.deleteEnvironment)
 	mux.HandleFunc("GET /api/tenants", h.listTenants)
+	mux.HandleFunc("GET /api/tenants/details", h.listTenantsDetailed)
+	mux.HandleFunc("POST /api/tenants", h.createTenant)
+	mux.HandleFunc("GET /api/settings", h.getSettings)
 
 	// GitHub routes
 	mux.HandleFunc("GET /api/github/branches", h.listBranches)

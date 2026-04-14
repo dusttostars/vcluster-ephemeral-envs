@@ -169,6 +169,7 @@
   .stat-value.green { color: var(--green); }
   .stat-value.amber { color: var(--amber); }
   .stat-value.purple { color: var(--accent); }
+  .stat-value.red { color: var(--red); }
 
   /* Table */
   .table-container {
@@ -501,6 +502,36 @@
     transition: border-color 0.15s;
   }
   .form-group textarea:focus { border-color: var(--accent); }
+
+  /* View switching */
+  .view { display: none; flex-direction: column; gap: 28px; flex: 1; }
+  .view.active { display: flex; }
+
+  /* Detail cards for Tenants/Clusters */
+  .detail-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+  .detail-card {
+    background: var(--surface-secondary);
+    border-radius: var(--radius-2xl);
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    border: 1px solid var(--border);
+  }
+  .detail-card-header { display: flex; justify-content: space-between; align-items: center; }
+  .detail-card-title { font-size: 16px; font-weight: 600; }
+  .detail-card-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.04); }
+  .detail-card-row:last-child { border-bottom: none; }
+  .detail-card-label { font-size: 12px; color: var(--fg-muted); font-family: var(--font-mono); }
+  .detail-card-value { font-size: 13px; font-family: var(--font-mono); color: var(--fg-secondary); }
+
+  /* Settings */
+  .settings-section { background: var(--surface-secondary); border-radius: var(--radius-2xl); padding: 24px; display: flex; flex-direction: column; gap: 16px; }
+  .settings-section h3 { font-size: 14px; font-weight: 600; color: var(--fg-secondary); }
+  .settings-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.04); }
+  .settings-row:last-child { border-bottom: none; }
+  .settings-key { font-size: 13px; color: var(--fg-muted); font-family: var(--font-mono); }
+  .settings-val { font-size: 13px; font-family: var(--font-mono); color: var(--green); }
 </style>
 </head>
 <body>
@@ -516,19 +547,19 @@
 
   <nav class="nav-section">
     <div class="nav-label">NAVIGATION</div>
-    <a class="nav-item active" href="#">
+    <a class="nav-item active" onclick="switchView('dashboard')">
       <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
       Dashboard
     </a>
-    <a class="nav-item" href="#">
+    <a class="nav-item" onclick="switchView('clusters')">
       <svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
       Clusters
     </a>
-    <a class="nav-item" href="#">
+    <a class="nav-item" onclick="switchView('tenants')">
       <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
       Tenants
     </a>
-    <a class="nav-item" href="#">
+    <a class="nav-item" onclick="switchView('settings')">
       <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
       Settings
     </a>
@@ -537,53 +568,112 @@
 
 <!-- Main content -->
 <main class="main">
-  <div class="header">
-    <div>
-      <h1>Ephemeral Environments</h1>
-      <p>Manage your vCluster environments across tenants</p>
-    </div>
-    <button class="btn-create" onclick="openCreateModal()">
-      <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-      Create vCluster
-    </button>
-  </div>
 
-  <div class="stats-row">
-    <div class="stat-card">
-      <span class="stat-label">Total Clusters</span>
-      <span class="stat-value" id="stat-total">-</span>
+  <!-- Dashboard View -->
+  <div class="view active" id="view-dashboard">
+    <div class="header">
+      <div>
+        <h1>Ephemeral Environments</h1>
+        <p>Manage your vCluster environments across tenants</p>
+      </div>
+      <button class="btn-create" onclick="openCreateModal()">
+        <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Create vCluster
+      </button>
     </div>
-    <div class="stat-card">
-      <span class="stat-label">Running</span>
-      <span class="stat-value green" id="stat-running">-</span>
-    </div>
-    <div class="stat-card">
-      <span class="stat-label">Expiring Soon</span>
-      <span class="stat-value amber" id="stat-expiring">-</span>
-    </div>
-    <div class="stat-card">
-      <span class="stat-label">Tenants</span>
-      <span class="stat-value purple" id="stat-tenants">-</span>
-    </div>
-  </div>
 
-  <div class="table-container">
-    <div class="table-header">
-      <span class="th col-name">Name</span>
-      <span class="th col-tenant">Tenant</span>
-      <span class="th col-branch">Branch</span>
-      <span class="th col-ttl">TTL</span>
-      <span class="th col-status">Status</span>
-      <span class="th col-created">Created</span>
-      <span class="th col-actions">Actions</span>
+    <div class="stats-row">
+      <div class="stat-card">
+        <span class="stat-label">Total Clusters</span>
+        <span class="stat-value" id="stat-total">-</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-label">Running</span>
+        <span class="stat-value green" id="stat-running">-</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-label">Expiring Soon</span>
+        <span class="stat-value amber" id="stat-expiring">-</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-label">Tenants</span>
+        <span class="stat-value purple" id="stat-tenants">-</span>
+      </div>
     </div>
-    <div class="table-body" id="table-body">
-      <div class="empty-state" id="empty-state">
-        <svg viewBox="0 0 24 24" stroke-width="1.5"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
-        <p>No environments yet. Create one to get started.</p>
+
+    <div class="table-container">
+      <div class="table-header">
+        <span class="th col-name">Name</span>
+        <span class="th col-tenant">Tenant</span>
+        <span class="th col-branch">Branch</span>
+        <span class="th col-ttl">TTL</span>
+        <span class="th col-status">Status</span>
+        <span class="th col-created">Created</span>
+        <span class="th col-actions">Actions</span>
+      </div>
+      <div class="table-body" id="table-body">
+        <div class="empty-state" id="empty-state">
+          <svg viewBox="0 0 24 24" stroke-width="1.5"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+          <p>No environments yet. Create one to get started.</p>
+        </div>
       </div>
     </div>
   </div>
+
+  <!-- Clusters View -->
+  <div class="view" id="view-clusters">
+    <div class="header">
+      <div>
+        <h1>Clusters</h1>
+        <p>All vCluster instances across tenants</p>
+      </div>
+    </div>
+    <div class="stats-row">
+      <div class="stat-card">
+        <span class="stat-label">Total</span>
+        <span class="stat-value" id="cluster-stat-total">-</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-label">Running</span>
+        <span class="stat-value green" id="cluster-stat-running">-</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-label">Expired</span>
+        <span class="stat-value red" id="cluster-stat-expired">-</span>
+      </div>
+    </div>
+    <div class="detail-grid" id="clusters-grid"></div>
+  </div>
+
+  <!-- Tenants View -->
+  <div class="view" id="view-tenants">
+    <div class="header">
+      <div>
+        <h1>Tenants</h1>
+        <p>Namespace isolation and resource quotas</p>
+      </div>
+      <button class="btn-create" onclick="openCreateTenantModal()">
+        <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Create Tenant
+      </button>
+    </div>
+    <div class="detail-grid" id="tenants-grid"></div>
+  </div>
+
+  <!-- Settings View -->
+  <div class="view" id="view-settings">
+    <div class="header">
+      <div>
+        <h1>Settings</h1>
+        <p>Platform configuration</p>
+      </div>
+    </div>
+    <div class="settings-section">
+      <h3>General</h3>
+      <div id="settings-content"></div>
+    </div>
+  </div>
+
 </main>
 
 <!-- Create Modal -->
@@ -712,6 +802,29 @@
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeDeployModal()">Cancel</button>
       <button class="btn-submit" id="btn-deploy-submit" onclick="submitDeploy()">Deploy</button>
+    </div>
+  </div>
+</div>
+
+<!-- Create Tenant Modal -->
+<div class="modal-overlay" id="create-tenant-modal">
+  <div class="modal">
+    <h2>Create Tenant</h2>
+    <div class="form-group">
+      <label>NAME</label>
+      <input type="text" id="tenant-name" placeholder="e.g. team-backend">
+    </div>
+    <div class="form-group">
+      <label>CPU LIMIT</label>
+      <input type="text" id="tenant-cpu" value="4" placeholder="e.g. 4">
+    </div>
+    <div class="form-group">
+      <label>MEMORY LIMIT</label>
+      <input type="text" id="tenant-memory" value="8Gi" placeholder="e.g. 8Gi">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeCreateTenantModal()">Cancel</button>
+      <button class="btn-submit" id="btn-tenant-submit" onclick="submitCreateTenant()">Create</button>
     </div>
   </div>
 </div>
@@ -1176,6 +1289,162 @@
       await refreshChartsList();
     } catch (e) {
       showToast('Uninstall failed: ' + e.message, true);
+    }
+  }
+
+  // ---- Create Tenant ----
+
+  function openCreateTenantModal() {
+    document.getElementById('tenant-name').value = '';
+    document.getElementById('tenant-cpu').value = '4';
+    document.getElementById('tenant-memory').value = '8Gi';
+    document.getElementById('create-tenant-modal').classList.add('open');
+    document.getElementById('tenant-name').focus();
+  }
+
+  function closeCreateTenantModal() {
+    document.getElementById('create-tenant-modal').classList.remove('open');
+  }
+
+  async function submitCreateTenant() {
+    const name = document.getElementById('tenant-name').value.trim();
+    const cpu = document.getElementById('tenant-cpu').value.trim();
+    const memory = document.getElementById('tenant-memory').value.trim();
+
+    if (!name) {
+      showToast('Please enter a tenant name', true);
+      return;
+    }
+
+    const btn = document.getElementById('btn-tenant-submit');
+    btn.disabled = true;
+    btn.textContent = 'Creating...';
+
+    try {
+      const res = await fetch('/api/tenants', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, cpu, memory })
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text);
+      }
+
+      showToast(`Tenant "${name}" created. ArgoCD will sync the resources.`);
+      closeCreateTenantModal();
+      await fetchTenants();
+      await fetchData();
+    } catch (e) {
+      showToast('Failed to create tenant: ' + e.message, true);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Create';
+    }
+  }
+
+  // ---- View switching ----
+
+  function switchView(viewName) {
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.getElementById('view-' + viewName).classList.add('active');
+    event.currentTarget.classList.add('active');
+
+    if (viewName === 'clusters') renderClusters();
+    if (viewName === 'tenants') fetchTenants();
+    if (viewName === 'settings') fetchSettings();
+  }
+
+  // ---- Clusters view ----
+
+  function renderClusters() {
+    const total = environments.length;
+    const running = environments.filter(e => e.status === 'Running').length;
+    const expired = environments.filter(e => e.status === 'Expired').length;
+
+    document.getElementById('cluster-stat-total').textContent = total;
+    document.getElementById('cluster-stat-running').textContent = running;
+    document.getElementById('cluster-stat-expired').textContent = expired;
+
+    const grid = document.getElementById('clusters-grid');
+    if (environments.length === 0) {
+      grid.innerHTML = '<div class="empty-state"><p>No clusters found.</p></div>';
+      return;
+    }
+
+    grid.innerHTML = environments.map(env => `
+      <div class="detail-card">
+        <div class="detail-card-header">
+          <span class="detail-card-title">${esc(env.name)}</span>
+          <span class="badge ${env.status.toLowerCase()}"><span class="badge-dot"></span>${esc(env.status)}</span>
+        </div>
+        <div class="detail-card-row"><span class="detail-card-label">Tenant</span><span class="detail-card-value">${esc(env.tenant)}</span></div>
+        <div class="detail-card-row"><span class="detail-card-label">Branch</span><span class="detail-card-value">${esc(env.branch)}</span></div>
+        <div class="detail-card-row"><span class="detail-card-label">Namespace</span><span class="detail-card-value">tenant-${esc(env.tenant)}</span></div>
+        <div class="detail-card-row"><span class="detail-card-label">TTL</span><span class="detail-card-value">${esc(env.ttl)}</span></div>
+        <div class="detail-card-row"><span class="detail-card-label">Created</span><span class="detail-card-value">${esc(env.age)}</span></div>
+        ${env.status === 'Running' ? `<div style="display:flex;gap:8px;margin-top:4px">
+          <button class="btn-sm btn-connect" style="background:rgba(34,197,94,0.1);color:var(--green)" onclick="openAppProxy('${esc(env.tenant)}','${esc(env.name)}')">Open</button>
+          <button class="btn-sm btn-connect" onclick="showConnect('${esc(env.name)}','${esc(env.tenant)}')">Connect</button>
+        </div>` : ''}
+      </div>
+    `).join('');
+  }
+
+  // ---- Tenants view ----
+
+  async function fetchTenants() {
+    const grid = document.getElementById('tenants-grid');
+    grid.innerHTML = '<div class="empty-state"><p>Loading...</p></div>';
+
+    try {
+      const res = await fetch('/api/tenants/details');
+      if (!res.ok) throw new Error(await res.text());
+      const details = await res.json();
+
+      if (details.length === 0) {
+        grid.innerHTML = '<div class="empty-state"><p>No tenants configured.</p></div>';
+        return;
+      }
+
+      grid.innerHTML = details.map(t => `
+        <div class="detail-card">
+          <div class="detail-card-header">
+            <span class="detail-card-title">${esc(t.name)}</span>
+            <span class="badge running"><span class="badge-dot"></span>Active</span>
+          </div>
+          <div class="detail-card-row"><span class="detail-card-label">Namespace</span><span class="detail-card-value">${esc(t.namespace)}</span></div>
+          <div class="detail-card-row"><span class="detail-card-label">CPU Limit</span><span class="detail-card-value">${esc(t.cpu || '-')}</span></div>
+          <div class="detail-card-row"><span class="detail-card-label">Memory Limit</span><span class="detail-card-value">${esc(t.memory || '-')}</span></div>
+          <div class="detail-card-row"><span class="detail-card-label">Pod Limit</span><span class="detail-card-value">${esc(t.pods || '-')}</span></div>
+          <div class="detail-card-row"><span class="detail-card-label">Environments</span><span class="detail-card-value">${t.envCount}</span></div>
+        </div>
+      `).join('');
+    } catch (e) {
+      grid.innerHTML = `<div class="empty-state"><p style="color:var(--red)">Failed to load tenants: ${esc(e.message)}</p></div>`;
+    }
+  }
+
+  // ---- Settings view ----
+
+  async function fetchSettings() {
+    const el = document.getElementById('settings-content');
+    el.innerHTML = '<div class="charts-empty">Loading...</div>';
+
+    try {
+      const res = await fetch('/api/settings');
+      if (!res.ok) throw new Error(await res.text());
+      const s = await res.json();
+
+      el.innerHTML = `
+        <div class="settings-row"><span class="settings-key">GitHub Repository</span><span class="settings-val">${esc(s.githubRepo)}</span></div>
+        <div class="settings-row"><span class="settings-key">Container Registry</span><span class="settings-val">${esc(s.registry)}</span></div>
+        <div class="settings-row"><span class="settings-key">GitOps Repo Path</span><span class="settings-val">${esc(s.repoPath)}</span></div>
+      `;
+    } catch (e) {
+      el.innerHTML = `<div class="charts-empty" style="color:var(--red)">Failed to load settings: ${esc(e.message)}</div>`;
     }
   }
 

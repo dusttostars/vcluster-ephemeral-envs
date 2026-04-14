@@ -1,0 +1,25 @@
+name: Build Dashboard
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'cmd/dashboard/**'
+      - 'Dockerfile.dashboard'
+
+jobs:
+  build:
+    runs-on: arc-runner-set
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build and push dashboard image
+        run: |
+          docker build -t localhost:32000/dashboard:latest -f Dockerfile.dashboard .
+          docker push localhost:32000/dashboard:latest
+
+      - name: Restart dashboard deployment
+        run: |
+          kubectl rollout restart deployment dashboard -n ephemeral-system
+          kubectl rollout status deployment dashboard -n ephemeral-system --timeout=120s
