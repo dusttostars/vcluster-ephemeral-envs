@@ -114,9 +114,10 @@ jobs:
             const branch = '${{ steps.branch.outputs.branch }}';
             const ns = `tenant-${tenant}`;
             const deployStatus = '${{ steps.deploy.outputs.deploy_status }}';
+            const appUrl = `http://dashboard.local/app/${tenant}/${envName}/`;
             const deployInfo = deployStatus === 'success'
-              ? `| **App** | :white_check_mark: Deployed from \`${branch}\` |\n`
-              : `| **App** | :warning: Deploy pending — use [dashboard](http://localhost:8090) |\n`;
+              ? `| **App** | :white_check_mark: [Open app](${appUrl}) — deployed from \`${branch}\` |\n`
+              : `| **App** | :warning: Deploy pending — [open dashboard](http://dashboard.local) |\n`;
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
