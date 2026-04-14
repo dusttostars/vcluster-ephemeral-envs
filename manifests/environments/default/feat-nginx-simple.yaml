@@ -7,7 +7,7 @@ metadata:
     ephemeral.io/tenant: "default"
     ephemeral.io/branch: "feat-nginx-simple"
     ephemeral.io/ttl: "2h"
-    ephemeral.io/created-at: "20260414T204519Z"
+    ephemeral.io/created-at: "20260414T205226Z"
     ephemeral.io/managed-by: "ephemeral-controller"
 spec:
   project: tenant-default
