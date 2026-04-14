@@ -1,5 +1,5 @@
 .PHONY: help setup setup-microk8s setup-argocd setup-arc build build-cli build-controller build-dashboard \
-       tenant-create env-create env-delete docker-build docker-push dashboard
+       tenant-create env-create env-delete docker-build docker-push dashboard setup-dashboard-ingress
 
 REPO_URL ?= https://github.com/dusttostars/vcluster-ephemeral-envs.git
 REGISTRY ?= ghcr.io/dusttostars/vcluster-ephemeral-envs
@@ -36,6 +36,11 @@ build-dashboard: ## Build the dashboard web server
 
 dashboard: build-dashboard ## Run the dashboard locally
 	./bin/dashboard --repo-path=. --addr=:8090
+
+setup-dashboard-ingress: ## Enable ingress addon and expose dashboard at dashboard.local
+	microk8s enable ingress
+	kubectl apply -f manifests/dashboard/ingress.yaml
+	@grep -q 'dashboard.local' /etc/hosts || echo "Add to /etc/hosts:  127.0.0.1  dashboard.local"
 
 # --- Docker ---
 
