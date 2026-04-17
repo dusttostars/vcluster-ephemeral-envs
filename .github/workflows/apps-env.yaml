@@ -1,0 +1,118 @@
+name: Apps Ephemeral Envs
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'apps/**'
+      - '.github/workflows/apps-env.yaml'
+
+jobs:
+  detect:
+    runs-on: arc-runner-set
+    outputs:
+      apps: ${{ steps.changed.outputs.apps }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: changed
+        run: |
+          BASE="origin/${{ github.base_ref }}"
+          git fetch --no-tags --depth=50 origin "${{ github.base_ref }}"
+          APPS=$(git diff --name-only "$BASE"...HEAD -- 'apps/' \
+                  | awk -F/ '{print $2}' | sort -u \
+                  | jq -R -s -c 'split("\n") | map(select(. != ""))')
+          echo "detected apps: $APPS"
+          echo "apps=$APPS" >> "$GITHUB_OUTPUT"
+
+  build-and-deploy:
+    needs: detect
+    if: needs.detect.outputs.apps != '[]' && needs.detect.outputs.apps != ''
+    runs-on: arc-runner-set
+    permissions:
+      contents: read
+      pull-requests: write
+    strategy:
+      fail-fast: false
+      matrix:
+        app: ${{ fromJson(needs.detect.outputs.apps) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract env info
+        id: env
+        run: |
+          BRANCH="${{ github.head_ref }}"
+          SAFE_BRANCH="${BRANCH//\//-}"
+          ENV_NAME="${{ matrix.app }}-${SAFE_BRANCH}"
+          echo "branch=$BRANCH"       >> "$GITHUB_OUTPUT"
+          echo "safe_branch=$SAFE_BRANCH" >> "$GITHUB_OUTPUT"
+          echo "env_name=$ENV_NAME"   >> "$GITHUB_OUTPUT"
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: network=host
+          buildkitd-config-inline: |
+            [registry."registry.container-registry.svc.cluster.local:5000"]
+              http = true
+              insecure = true
+
+      - name: Compute image tags
+        id: build
+        run: |
+          TAG="pr-${{ steps.env.outputs.safe_branch }}"
+          # Push via the in-cluster Service URL; Kubelet pulls via localhost:32000.
+          # Both hostnames point at the same registry backend.
+          echo "push_ref=registry.container-registry.svc.cluster.local:5000/${{ matrix.app }}:${TAG}" >> "$GITHUB_OUTPUT"
+          echo "image=localhost:32000/${{ matrix.app }}:${TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push image
+        uses: docker/build-push-action@v5
+        with:
+          context: apps/${{ matrix.app }}
+          push: true
+          tags: ${{ steps.build.outputs.push_ref }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: v1.29.1
+
+      - name: Build CLI
+        run: go build -o /tmp/ephemeral ./cmd/cli
+
+      - name: Apply EphemeralEnvironment CR
+        run: |
+          /tmp/ephemeral env render \
+            --tenant default \
+            --branch "${{ steps.env.outputs.env_name }}" \
+            --ttl 1h \
+            --image "${{ steps.build.outputs.image }}" \
+            --port 80 \
+          | kubectl apply -f -
+
+      - name: Comment PR with env info
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const app     = '${{ matrix.app }}';
+            const envName = '${{ steps.env.outputs.env_name }}';
+            const image   = '${{ steps.build.outputs.image }}';
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## :rocket: \`${app}\` ephemeral env ready\n\n` +
+                    `| Field | Value |\n|---|---|\n` +
+                    `| **Env** | \`${envName}\` |\n` +
+                    `| **Image** | \`${image}\` |\n` +
+                    `| **TTL** | 1h |\n\n` +
+                    `Browse via the dashboard proxy: \`/app/default/${envName}/\``
+            });
