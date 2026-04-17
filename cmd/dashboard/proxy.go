@@ -172,8 +172,10 @@ func (h *handler) listDeployedApps(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	ns := fmt.Sprintf("tenant-%s", tenant)
 
-	// Find synced services that match the app pattern.
-	svcs, err := h.client.Resource(serviceGVR).Namespace(ns).List(r.Context(), metav1.ListOptions{})
+	managedBy := "vcluster-" + name
+	svcs, err := h.client.Resource(serviceGVR).Namespace(ns).List(r.Context(), metav1.ListOptions{
+		LabelSelector: "vcluster.loft.sh/managed-by=" + managedBy,
+	})
 	if err != nil {
 		http.Error(w, fmt.Sprintf("listing services: %v", err), http.StatusInternalServerError)
 		return
@@ -187,32 +189,31 @@ func (h *handler) listDeployedApps(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var apps []appInfo
-	vclusterSuffix := fmt.Sprintf("-x-default-x-vcluster-%s", name)
 	for _, s := range svcs.Items {
-		sName := s.GetName()
-		if strings.Contains(sName, vclusterSuffix) && !strings.Contains(sName, "kube-dns") {
-			clusterIP := ""
-			port := "80"
-			if spec, ok := s.Object["spec"].(map[string]interface{}); ok {
-				clusterIP, _ = spec["clusterIP"].(string)
-				if ports, ok := spec["ports"].([]interface{}); ok && len(ports) > 0 {
-					if p, ok := ports[0].(map[string]interface{}); ok {
-						if pp, ok := p["port"]; ok {
-							port = fmt.Sprintf("%v", pp)
-						}
+		ann := s.GetAnnotations()
+		origName := ann["vcluster.loft.sh/object-name"]
+		origNS := ann["vcluster.loft.sh/object-namespace"]
+		if origName == "" || origNS != "default" || strings.Contains(origName, "kube-dns") {
+			continue
+		}
+		clusterIP := ""
+		port := "80"
+		if spec, ok := s.Object["spec"].(map[string]interface{}); ok {
+			clusterIP, _ = spec["clusterIP"].(string)
+			if ports, ok := spec["ports"].([]interface{}); ok && len(ports) > 0 {
+				if p, ok := ports[0].(map[string]interface{}); ok {
+					if pp, ok := p["port"]; ok {
+						port = fmt.Sprintf("%v", pp)
 					}
 				}
 			}
-
-			// Extract the app name from the synced service name.
-			appName := strings.TrimSuffix(sName, vclusterSuffix)
-			apps = append(apps, appInfo{
-				Name:      appName,
-				ProxyURL:  fmt.Sprintf("/app/%s/%s/?svc=%s", tenant, name, appName),
-				ClusterIP: clusterIP,
-				Port:      port,
-			})
 		}
+		apps = append(apps, appInfo{
+			Name:      origName,
+			ProxyURL:  fmt.Sprintf("/app/%s/%s/?svc=%s", tenant, name, origName),
+			ClusterIP: clusterIP,
+			Port:      port,
+		})
 	}
 
 	if apps == nil {
