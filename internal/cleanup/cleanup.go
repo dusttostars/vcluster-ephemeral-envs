@@ -133,7 +133,7 @@ func (c *Controller) isExpired(app unstructured.Unstructured) bool {
 		return false
 	}
 
-	createdAt, err := time.Parse(time.RFC3339, createdAtStr)
+	createdAt, err := parseCreatedAt(createdAtStr)
 	if err != nil {
 		log.Printf("invalid created-at label on %s: %v", app.GetName(), err)
 		return false
@@ -158,6 +158,16 @@ func (c *Controller) isExpired(app unstructured.Unstructured) bool {
 	}
 
 	return time.Now().UTC().After(createdAt.Add(ttl))
+}
+
+// parseCreatedAt accepts the compact ISO 8601 format used in labels
+// (20060102T150405Z — chosen because Kubernetes label values can't contain ':')
+// and falls back to RFC3339 for older values.
+func parseCreatedAt(s string) (time.Time, error) {
+	if t, err := time.Parse("20060102T150405Z", s); err == nil {
+		return t, nil
+	}
+	return time.Parse(time.RFC3339, s)
 }
 
 // removeManifest deletes the environment manifest file from the local repo clone.
