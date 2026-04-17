@@ -80,23 +80,17 @@ jobs:
         with:
           go-version: '1.22'
 
-      - name: Set up kubectl
-        uses: azure/setup-kubectl@v4
-        with:
-          version: v1.29.1
-
       - name: Build CLI
         run: go build -o /tmp/ephemeral ./cmd/cli
 
       - name: Apply EphemeralEnvironment CR
         run: |
-          /tmp/ephemeral env render \
+          /tmp/ephemeral env apply \
             --tenant default \
             --branch "${{ steps.env.outputs.env_name }}" \
             --ttl 1h \
             --image "${{ steps.build.outputs.image }}" \
-            --port 80 \
-          | kubectl apply -f -
+            --port 80
 
       - name: Comment PR with env info
         uses: actions/github-script@v7
