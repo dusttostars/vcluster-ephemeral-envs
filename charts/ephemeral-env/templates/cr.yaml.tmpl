@@ -1,0 +1,22 @@
+apiVersion: ephemeral.io/v1alpha1
+kind: EphemeralEnvironment
+metadata:
+  name: {{ .Name }}
+  namespace: tenant-{{ .Tenant }}
+  labels:
+    ephemeral.io/tenant: "{{ .Tenant }}"
+    ephemeral.io/branch: "{{ .Name }}"
+spec:
+  tenant: {{ .Tenant }}
+  branch: {{ .Branch }}
+  ttl: {{ .TTL }}
+  app:
+    image: {{ .Image }}
+    replicas: {{ .Replicas }}
+    port: {{ .Port }}
+    {{- if .Env }}
+    env:
+    {{- range $k, $v := .Env }}
+      {{ $k }}: "{{ $v }}"
+    {{- end }}
+    {{- end }}

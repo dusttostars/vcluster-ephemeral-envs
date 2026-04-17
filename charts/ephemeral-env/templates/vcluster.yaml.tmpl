@@ -1,0 +1,47 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: vcluster-{{ .Name }}
+  namespace: argocd
+  labels:
+    ephemeral.io/tenant: "{{ .Tenant }}"
+    ephemeral.io/branch: "{{ .Branch }}"
+    ephemeral.io/ttl: "{{ .TTL }}"
+    ephemeral.io/managed-by: "ephemeral-controller"
+    ephemeral.io/owner-uid: "{{ .OwnerUID }}"
+  ownerReferences:
+    - apiVersion: ephemeral.io/v1alpha1
+      kind: EphemeralEnvironment
+      name: {{ .Name }}
+      uid: {{ .OwnerUID }}
+      controller: true
+      blockOwnerDeletion: true
+spec:
+  project: tenant-{{ .Tenant }}
+  source:
+    repoURL: https://charts.loft.sh
+    chart: vcluster
+    targetRevision: "0.19.*"
+    helm:
+      values: |
+        syncer:
+          extraArgs:
+            - --out-kube-config-server=https://vcluster-{{ .Name }}.tenant-{{ .Tenant }}.svc.cluster.local
+          resources:
+            limits: { cpu: 500m, memory: 512Mi }
+            requests: { cpu: 100m, memory: 256Mi }
+        vcluster:
+          image: rancher/k3s:v1.29.1-k3s2
+          resources:
+            limits: { cpu: 500m, memory: 512Mi }
+            requests: { cpu: 100m, memory: 128Mi }
+        sync:
+          ingresses: { enabled: true }
+          services: { enabled: true }
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: tenant-{{ .Tenant }}
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

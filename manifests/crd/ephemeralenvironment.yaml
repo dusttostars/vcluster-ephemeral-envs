@@ -1,0 +1,83 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: ephemeralenvironments.ephemeral.io
+  labels:
+    ephemeral.io/component: crd
+spec:
+  group: ephemeral.io
+  names:
+    kind: EphemeralEnvironment
+    listKind: EphemeralEnvironmentList
+    plural: ephemeralenvironments
+    singular: ephemeralenvironment
+    shortNames: [ee, eenv]
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          required: [spec]
+          properties:
+            spec:
+              type: object
+              required: [tenant, branch, app]
+              properties:
+                tenant:
+                  type: string
+                branch:
+                  type: string
+                ttl:
+                  type: string
+                  default: "2h"
+                  description: "Lifetime of the env (Go duration, e.g. 2h, 30m)."
+                labels:
+                  type: object
+                  additionalProperties: { type: string }
+                app:
+                  type: object
+                  required: [image]
+                  properties:
+                    image: { type: string }
+                    replicas: { type: integer, default: 1 }
+                    port: { type: integer, default: 80 }
+                    env:
+                      type: object
+                      additionalProperties: { type: string }
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                  enum: [Pending, Provisioning, Running, Expired, Deleting, Failed]
+                expiresAt:
+                  type: string
+                  format: date-time
+                vclusterApp:
+                  type: string
+                message:
+                  type: string
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Tenant
+          type: string
+          jsonPath: .spec.tenant
+        - name: Branch
+          type: string
+          jsonPath: .spec.branch
+        - name: TTL
+          type: string
+          jsonPath: .spec.ttl
+        - name: Phase
+          type: string
+          jsonPath: .status.phase
+        - name: ExpiresAt
+          type: string
+          jsonPath: .status.expiresAt
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp

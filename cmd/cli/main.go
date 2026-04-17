@@ -20,6 +20,7 @@ func main() {
 	root.AddCommand(createCmd())
 	root.AddCommand(deleteCmd())
 	root.AddCommand(tenantCmd())
+	root.AddCommand(envCmd())
 
 	if err := root.Execute(); err != nil {
 		os.Exit(1)

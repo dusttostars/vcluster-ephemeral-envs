@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Name }}
+  namespace: default
+  labels:
+    app: {{ .Name }}
+    ephemeral.io/branch: "{{ .Branch }}"
+spec:
+  replicas: {{ .Replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Name }}
+    spec:
+      containers:
+        - name: app
+          image: {{ .Image }}
+          ports:
+            - containerPort: {{ .Port }}
+          {{- if .Env }}
+          env:
+          {{- range $k, $v := .Env }}
+            - name: {{ $k }}
+              value: "{{ $v }}"
+          {{- end }}
+          {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Name }}
+  namespace: default
+spec:
+  selector:
+    app: {{ .Name }}
+  ports:
+    - port: 80
+      targetPort: {{ .Port }}
