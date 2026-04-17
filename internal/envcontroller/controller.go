@@ -16,6 +16,7 @@ import (
 	"log"
 	"time"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -28,9 +29,10 @@ import (
 )
 
 var (
-	secretGVR     = schema.GroupVersionResource{Group: "", Version: "v1", Resource: "secrets"}
-	deploymentGVR = schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"}
-	serviceGVR    = schema.GroupVersionResource{Group: "", Version: "v1", Resource: "services"}
+	secretGVR      = schema.GroupVersionResource{Group: "", Version: "v1", Resource: "secrets"}
+	deploymentGVR  = schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"}
+	serviceGVR     = schema.GroupVersionResource{Group: "", Version: "v1", Resource: "services"}
+	statefulsetGVR = schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "statefulsets"}
 )
 
 var (
@@ -296,23 +298,41 @@ func (c *Controller) ensureArgoApp(ctx context.Context, env *unstructured.Unstru
 	return err
 }
 
-// finalize runs before the CR is deleted from the API: remove the Argo App
-// we created, then clear our finalizer so the CR can go away.
+// finalize deletes the Argo App, then direct-deletes the vcluster
+// StatefulSet and Services since Argo's prune can leave orphans.
 func (c *Controller) finalize(ctx context.Context, env *unstructured.Unstructured) error {
+	spec, _, _ := unstructured.NestedMap(env.Object, "spec")
+	tenant, _ := spec["tenant"].(string)
+	tenantNS := "tenant-" + tenant
+	vcName := "vcluster-" + env.GetName()
+
 	selector := fmt.Sprintf("%s=%s", ownerUIDLabel, string(env.GetUID()))
-	apps, err := c.client.Resource(appGVR).Namespace(argoNamespace).List(ctx, metav1.ListOptions{LabelSelector: selector})
-	if err != nil {
-		return fmt.Errorf("listing argo apps: %w", err)
+	if apps, err := c.client.Resource(appGVR).Namespace(argoNamespace).List(ctx, metav1.ListOptions{LabelSelector: selector}); err == nil {
+		for _, app := range apps.Items {
+			log.Printf("finalize %s/%s: deleting argo app %s", env.GetNamespace(), env.GetName(), app.GetName())
+			if err := c.client.Resource(appGVR).Namespace(argoNamespace).Delete(ctx, app.GetName(), metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
+				log.Printf("finalize %s/%s: argo app delete: %v", env.GetNamespace(), env.GetName(), err)
+			}
+		}
 	}
-	for _, app := range apps.Items {
-		log.Printf("finalize %s/%s: deleting argo app %s", env.GetNamespace(), env.GetName(), app.GetName())
-		if err := c.client.Resource(appGVR).Namespace(argoNamespace).Delete(ctx, app.GetName(), metav1.DeleteOptions{}); err != nil {
-			return err
+
+	// 2. Best-effort: delete the resources the vcluster Helm chart created.
+	// Names are predictable; we don't rely on Argo's prune path here.
+	for _, victim := range []struct {
+		gvr  schema.GroupVersionResource
+		name string
+	}{
+		{statefulsetGVR, vcName},
+		{serviceGVR, vcName},
+		{serviceGVR, vcName + "-headless"},
+	} {
+		if err := c.client.Resource(victim.gvr).Namespace(tenantNS).Delete(ctx, victim.name, metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
+			log.Printf("finalize %s/%s: delete %s/%s: %v", env.GetNamespace(), env.GetName(), victim.gvr.Resource, victim.name, err)
 		}
 	}
 
 	removeFinalizer(env, finalizerName)
-	_, err = c.client.Resource(eeGVR).Namespace(env.GetNamespace()).Update(ctx, env, metav1.UpdateOptions{})
+	_, err := c.client.Resource(eeGVR).Namespace(env.GetNamespace()).Update(ctx, env, metav1.UpdateOptions{})
 	return err
 }
 
