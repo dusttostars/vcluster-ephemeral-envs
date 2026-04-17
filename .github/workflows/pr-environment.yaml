@@ -42,15 +42,16 @@ jobs:
         with:
           driver-opts: network=host
           buildkitd-config-inline: |
-            [registry."localhost:32000"]
+            [registry."registry.container-registry.svc.cluster.local:5000"]
               http = true
               insecure = true
 
-      - name: Compute image tag
+      - name: Compute image tags
         id: build
         run: |
-          TAG="localhost:32000/dashboard:pr-${{ steps.branch.outputs.env_name }}"
-          echo "image=$TAG" >> "$GITHUB_OUTPUT"
+          TAG="pr-${{ steps.branch.outputs.env_name }}"
+          echo "push_ref=registry.container-registry.svc.cluster.local:5000/dashboard:${TAG}" >> "$GITHUB_OUTPUT"
+          echo "image=localhost:32000/dashboard:${TAG}" >> "$GITHUB_OUTPUT"
 
       - name: Build and push dashboard image
         uses: docker/build-push-action@v5
@@ -58,7 +59,7 @@ jobs:
           context: .
           file: Dockerfile.dashboard
           push: true
-          tags: ${{ steps.build.outputs.image }}
+          tags: ${{ steps.build.outputs.push_ref }}
 
       - name: Build CLI for rendering CR
         run: |

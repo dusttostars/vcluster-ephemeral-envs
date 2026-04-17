@@ -55,22 +55,25 @@ jobs:
         with:
           driver-opts: network=host
           buildkitd-config-inline: |
-            [registry."localhost:32000"]
+            [registry."registry.container-registry.svc.cluster.local:5000"]
               http = true
               insecure = true
 
-      - name: Compute image tag
+      - name: Compute image tags
         id: build
         run: |
-          TAG="localhost:32000/${{ matrix.app }}:pr-${{ steps.env.outputs.safe_branch }}"
-          echo "image=$TAG" >> "$GITHUB_OUTPUT"
+          TAG="pr-${{ steps.env.outputs.safe_branch }}"
+          # Push via the in-cluster Service URL; Kubelet pulls via localhost:32000.
+          # Both hostnames point at the same registry backend.
+          echo "push_ref=registry.container-registry.svc.cluster.local:5000/${{ matrix.app }}:${TAG}" >> "$GITHUB_OUTPUT"
+          echo "image=localhost:32000/${{ matrix.app }}:${TAG}" >> "$GITHUB_OUTPUT"
 
       - name: Build and push image
         uses: docker/build-push-action@v5
         with:
           context: apps/${{ matrix.app }}
           push: true
-          tags: ${{ steps.build.outputs.image }}
+          tags: ${{ steps.build.outputs.push_ref }}
 
       - name: Build CLI
         run: go build -o /tmp/ephemeral ./cmd/cli
