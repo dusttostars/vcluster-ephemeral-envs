@@ -30,16 +30,22 @@ jobs:
           fi
           echo "tenant=$TENANT" >> "$GITHUB_OUTPUT"
 
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Build CLI
+        run: go build -o /tmp/ephemeral ./cmd/cli
+
       - name: Delete EphemeralEnvironments for this PR
         run: |
-          NS="tenant-${{ steps.tenant.outputs.tenant }}"
-          SUFFIX="${{ steps.branch.outputs.env_name }}"
-          # Match both:
-          #   * legacy <branch>      (single-app PRs)
-          #   * <app>-<branch>       (multi-app PRs via apps-env.yaml)
-          kubectl -n "$NS" get ephemeralenvironment -o name \
-            | grep -E "/((.*-)?${SUFFIX})$" \
-            | xargs -r kubectl -n "$NS" delete --ignore-not-found
+          /tmp/ephemeral env delete \
+            --tenant "${{ steps.tenant.outputs.tenant }}" \
+            --suffix "${{ steps.branch.outputs.env_name }}"
 
       - name: Comment PR with cleanup info
         uses: actions/github-script@v7
