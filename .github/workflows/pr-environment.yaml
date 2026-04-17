@@ -3,6 +3,10 @@ name: PR Ephemeral Environment
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+    paths:
+      - 'cmd/dashboard/**'
+      - 'Dockerfile.dashboard'
+      - '.github/workflows/pr-environment.yaml'
 
 jobs:
   create-env:
