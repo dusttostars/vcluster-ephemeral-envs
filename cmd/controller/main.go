@@ -13,21 +13,19 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
-	"github.com/dusttostars/vcluster-ephemeral-envs/internal/cleanup"
+	"github.com/dusttostars/vcluster-ephemeral-envs/internal/envcontroller"
 )
 
 func main() {
 	var (
 		kubeconfig string
-		repoPath   string
 		interval   time.Duration
 		maxAge     time.Duration
 	)
 
 	flag.StringVar(&kubeconfig, "kubeconfig", "", "Path to kubeconfig (uses in-cluster config if empty)")
-	flag.StringVar(&repoPath, "repo-path", "/repo", "Path to the local GitOps repo clone")
-	flag.DurationVar(&interval, "interval", 60*time.Second, "Reconcile interval")
-	flag.DurationVar(&maxAge, "max-age", 24*time.Hour, "Maximum age for any ephemeral environment")
+	flag.DurationVar(&interval, "interval", 30*time.Second, "Reconcile interval")
+	flag.DurationVar(&maxAge, "max-age", 24*time.Hour, "Hard ceiling for any ephemeral environment's lifetime")
 	flag.Parse()
 
 	config, err := buildConfig(kubeconfig)
@@ -43,7 +41,7 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
-	controller := cleanup.NewController(client, repoPath, interval, maxAge)
+	controller := envcontroller.NewController(client, interval, maxAge)
 	if err := controller.Run(ctx); err != nil && err != context.Canceled {
 		log.Fatalf("controller error: %v", err)
 	}
@@ -53,8 +51,6 @@ func buildConfig(kubeconfig string) (*rest.Config, error) {
 	if kubeconfig != "" {
 		return clientcmd.BuildConfigFromFlags("", kubeconfig)
 	}
-
-	// Try in-cluster first, fall back to default kubeconfig location.
 	config, err := rest.InClusterConfig()
 	if err != nil {
 		home, _ := os.UserHomeDir()

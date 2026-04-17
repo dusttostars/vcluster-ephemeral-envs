@@ -5,12 +5,15 @@ metadata:
   labels:
     ephemeral.io/component: controller
 rules:
+  - apiGroups: ["ephemeral.io"]
+    resources: ["ephemeralenvironments"]
+    verbs: ["get", "list", "watch", "update", "patch", "delete"]
+  - apiGroups: ["ephemeral.io"]
+    resources: ["ephemeralenvironments/status"]
+    verbs: ["get", "update", "patch"]
   - apiGroups: ["argoproj.io"]
     resources: ["applications"]
-    verbs: ["get", "list", "watch", "delete"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   - apiGroups: [""]
     resources: ["namespaces"]
-    verbs: ["get", "list", "watch", "delete"]
-  - apiGroups: [""]
-    resources: ["pods", "services", "configmaps", "secrets"]
-    verbs: ["get", "list"]
+    verbs: ["get", "list", "watch"]

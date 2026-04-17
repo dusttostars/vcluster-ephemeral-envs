@@ -7,10 +7,13 @@ package render
 
 import (
 	"bytes"
+	"embed"
 	"fmt"
-	"os"
 	"text/template"
 )
+
+//go:embed templates/*.tmpl
+var templates embed.FS
 
 // Params is what the templates see under `.` — a flat struct by convention
 // so templates can reference `.Name`, `.Tenant`, `.Image`, etc.
@@ -26,17 +29,18 @@ type Params struct {
 	Env      map[string]string
 }
 
-// File renders a template at the given path.
-func File(path string, p Params) ([]byte, error) {
-	raw, err := os.ReadFile(path)
+// Template renders a named template embedded in the binary. The name is
+// resolved against templates/*.tmpl — pass "cr.yaml.tmpl" for the CR,
+// "vcluster.yaml.tmpl" for the Argo Application, etc.
+func Template(name string, p Params) ([]byte, error) {
+	raw, err := templates.ReadFile("templates/" + name)
 	if err != nil {
-		return nil, fmt.Errorf("reading template %s: %w", path, err)
+		return nil, fmt.Errorf("reading template %s: %w", name, err)
 	}
 	return String(string(raw), p)
 }
 
-// String renders an in-memory template. Named blocks so the caller
-// gets a useful error location if parsing fails.
+// String renders an in-memory template.
 func String(tmpl string, p Params) ([]byte, error) {
 	t, err := template.New("ephemeral-env").Option("missingkey=error").Parse(tmpl)
 	if err != nil {

@@ -20,14 +20,13 @@ func envCmd() *cobra.Command {
 
 func envRenderCmd() *cobra.Command {
 	var (
-		tenant     string
-		branch     string
-		ttl        string
-		image      string
-		replicas   int32
-		port       int32
-		envPairs   []string
-		templateFP string
+		tenant   string
+		branch   string
+		ttl      string
+		image    string
+		replicas int32
+		port     int32
+		envPairs []string
 	)
 
 	cmd := &cobra.Command{
@@ -52,7 +51,7 @@ func envRenderCmd() *cobra.Command {
 				Env:      envMap,
 			}
 
-			out, err := render.File(templateFP, p)
+			out, err := render.Template("cr.yaml.tmpl", p)
 			if err != nil {
 				return err
 			}
@@ -68,7 +67,6 @@ func envRenderCmd() *cobra.Command {
 	cmd.Flags().Int32Var(&replicas, "replicas", 1, "App replicas")
 	cmd.Flags().Int32Var(&port, "port", 80, "App container port")
 	cmd.Flags().StringSliceVar(&envPairs, "env", nil, "Env vars for the app in KEY=VALUE form (repeatable)")
-	cmd.Flags().StringVar(&templateFP, "template", "charts/ephemeral-env/templates/cr.yaml.tmpl", "Template path")
 	cmd.MarkFlagRequired("tenant")
 	cmd.MarkFlagRequired("branch")
 	cmd.MarkFlagRequired("image")

@@ -1,0 +1,30 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ephemeral-crd
+  namespace: argocd
+  labels:
+    ephemeral.io/component: crd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/dusttostars/vcluster-ephemeral-envs.git
+    targetRevision: HEAD
+    path: manifests/crd
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
+  ignoreDifferences:
+    - group: apiextensions.k8s.io
+      kind: CustomResourceDefinition
+      jsonPointers:
+        - /metadata/namespace
+        - /spec/conversion
+        - /spec/preserveUnknownFields
+        - /status
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
