@@ -10,11 +10,14 @@ metadata:
   name: dashboard
 rules:
   - apiGroups: [""]
-    resources: ["secrets", "services", "pods", "namespaces"]
+    resources: ["secrets", "services", "pods", "namespaces", "resourcequotas"]
     verbs: ["get", "list", "watch"]
+  - apiGroups: ["ephemeral.io"]
+    resources: ["ephemeralenvironments"]
+    verbs: ["get", "list", "watch", "create", "update", "delete"]
   - apiGroups: ["argoproj.io"]
     resources: ["applications"]
-    verbs: ["get", "list", "watch", "create", "update", "delete"]
+    verbs: ["get", "list", "watch"]
   - apiGroups: ["batch"]
     resources: ["jobs"]
     verbs: ["get", "list", "watch", "create", "delete"]
