@@ -50,20 +50,27 @@ jobs:
           echo "safe_branch=$SAFE_BRANCH" >> "$GITHUB_OUTPUT"
           echo "env_name=$ENV_NAME"   >> "$GITHUB_OUTPUT"
 
-      - name: Build and push image
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: network=host
+          buildkitd-config-inline: |
+            [registry."localhost:32000"]
+              http = true
+              insecure = true
+
+      - name: Compute image tag
         id: build
         run: |
-          sudo mkdir -p /etc/docker
-          echo '{"insecure-registries":["localhost:32000"]}' | sudo tee /etc/docker/daemon.json
-          sudo kill -TERM $(cat /var/run/docker.pid 2>/dev/null || pgrep -x dockerd) 2>/dev/null || true
-          sleep 2
-          sudo dockerd > /dev/null 2>&1 &
-          for i in $(seq 1 30); do docker info > /dev/null 2>&1 && break; sleep 1; done
-
           TAG="localhost:32000/${{ matrix.app }}:pr-${{ steps.env.outputs.safe_branch }}"
-          docker build -t "$TAG" "apps/${{ matrix.app }}"
-          docker push "$TAG"
           echo "image=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push image
+        uses: docker/build-push-action@v5
+        with:
+          context: apps/${{ matrix.app }}
+          push: true
+          tags: ${{ steps.build.outputs.image }}
 
       - name: Build CLI
         run: go build -o /tmp/ephemeral ./cmd/cli
