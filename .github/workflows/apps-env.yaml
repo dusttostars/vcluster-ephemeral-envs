@@ -53,6 +53,7 @@ jobs:
       - name: Build and push image
         id: build
         run: |
+          sudo mkdir -p /etc/docker
           echo '{"insecure-registries":["localhost:32000"]}' | sudo tee /etc/docker/daemon.json
           sudo kill -TERM $(cat /var/run/docker.pid 2>/dev/null || pgrep -x dockerd) 2>/dev/null || true
           sleep 2
