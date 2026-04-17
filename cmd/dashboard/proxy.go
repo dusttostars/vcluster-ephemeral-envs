@@ -52,46 +52,50 @@ func (h *handler) proxyApp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Find a synced app service in the host namespace.
-	// The vcluster syncer names services as: <name>-x-<vns>-x-vcluster-<env>
-	// We look for any service with the pattern "-x-default-x-vcluster-<name>"
-	// that serves HTTP (port 80), excluding kube-dns and headless services.
-	vclusterSuffix := fmt.Sprintf("-x-default-x-vcluster-%s", name)
-	svcs, err := h.client.Resource(serviceGVR).Namespace(ns).List(r.Context(), metav1.ListOptions{})
+	// Find a synced app service in the host namespace. vcluster's syncer
+	// annotates every synced object with vcluster.loft.sh/object-name and
+	// vcluster.loft.sh/object-namespace (preserving the original identity
+	// even when the host name gets truncated+hashed to fit 63 chars), and
+	// labels it with vcluster.loft.sh/managed-by=vcluster-<env>. We match
+	// on those rather than string-munging the host-side name.
+	managedBy := "vcluster-" + name
+	svcs, err := h.client.Resource(serviceGVR).Namespace(ns).List(r.Context(), metav1.ListOptions{
+		LabelSelector: "vcluster.loft.sh/managed-by=" + managedBy,
+	})
 	if err != nil {
 		http.Error(w, fmt.Sprintf("listing services: %v", err), http.StatusInternalServerError)
 		return
 	}
 
-	// Optional query param to select a specific app service.
 	targetApp := r.URL.Query().Get("svc")
 
 	var syncedSvc *unstructured.Unstructured
 	for _, s := range svcs.Items {
-		sName := s.GetName()
-		if strings.HasSuffix(sName, vclusterSuffix) &&
-			!strings.Contains(sName, "kube-dns") &&
-			!strings.HasSuffix(sName, "-headless"+vclusterSuffix) {
-			appName := strings.TrimSuffix(sName, vclusterSuffix)
-			// If a specific app was requested, match it.
-			if targetApp != "" && appName != targetApp {
-				continue
-			}
-			// Skip non-HTTP services (e.g. mongodb:27017, postgresql:5432).
-			if spec, ok := s.Object["spec"].(map[string]interface{}); ok {
-				if ports, ok := spec["ports"].([]interface{}); ok && len(ports) > 0 {
-					if p, ok := ports[0].(map[string]interface{}); ok {
-						port := fmt.Sprintf("%v", p["port"])
-						if port != "80" && port != "8080" && port != "3000" && port != "8090" && targetApp == "" {
-							continue
-						}
+		ann := s.GetAnnotations()
+		origName := ann["vcluster.loft.sh/object-name"]
+		origNS := ann["vcluster.loft.sh/object-namespace"]
+		if origName == "" || origNS != "default" {
+			continue
+		}
+		if strings.Contains(origName, "kube-dns") || strings.HasSuffix(origName, "-headless") {
+			continue
+		}
+		if targetApp != "" && origName != targetApp {
+			continue
+		}
+		if spec, ok := s.Object["spec"].(map[string]interface{}); ok {
+			if ports, ok := spec["ports"].([]interface{}); ok && len(ports) > 0 {
+				if p, ok := ports[0].(map[string]interface{}); ok {
+					port := fmt.Sprintf("%v", p["port"])
+					if port != "80" && port != "8080" && port != "3000" && port != "8090" && targetApp == "" {
+						continue
 					}
 				}
 			}
-			s := s
-			syncedSvc = &s
-			break
 		}
+		s := s
+		syncedSvc = &s
+		break
 	}
 
 	if syncedSvc == nil {
