@@ -895,7 +895,7 @@
           <span class="actions">
             ${env.status === 'Expiring' ? `<button class="btn-sm btn-extend" onclick="extendEnv('${esc(env.tenant)}','${esc(env.name)}')">Extend</button>` : ''}
             ${env.status === 'Running' ? `<button class="btn-sm btn-extend" onclick="openDeployModal('${esc(env.tenant)}','${esc(env.name)}')">Deploy</button>` : ''}
-            ${env.status === 'Running' ? `<button class="btn-sm btn-connect" style="background:rgba(34,197,94,0.1);color:var(--green)" onclick="openAppProxy('${esc(env.tenant)}','${esc(env.name)}')">Open</button>` : ''}
+            ${(env.status === 'Running' || env.status === 'Expiring') ? `<button class="btn-sm btn-connect" style="background:rgba(34,197,94,0.1);color:var(--green)" onclick="openAppProxy('${esc(env.tenant)}','${esc(env.name)}')">Open</button>` : ''}
             <button class="btn-sm btn-connect" onclick="openChartsPanel('${esc(env.tenant)}','${esc(env.name)}')">Charts</button>
             <button class="btn-sm btn-connect" onclick="showConnect('${esc(env.name)}','${esc(env.tenant)}')">Connect</button>
             <button class="btn-delete" onclick="deleteEnv('${esc(env.tenant)}','${esc(env.name)}')" title="Delete">
