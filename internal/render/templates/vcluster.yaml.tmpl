@@ -19,7 +19,7 @@ spec:
       values: |
         syncer:
           extraArgs:
-            - --out-kube-config-server=https://vcluster-{{ .Name }}.tenant-{{ .Tenant }}.svc.cluster.local
+            - --out-kube-config-server=https://vcluster-{{ .Name }}.tenant-{{ .Tenant }}
           resources:
             limits: { cpu: 500m, memory: 512Mi }
             requests: { cpu: 100m, memory: 256Mi }
