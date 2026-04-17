@@ -22,6 +22,9 @@ spec:
       kind: CustomResourceDefinition
       jsonPointers:
         - /metadata/namespace
+        - /spec/conversion
+        - /spec/preserveUnknownFields
+        - /status
   syncPolicy:
     automated:
       prune: true
