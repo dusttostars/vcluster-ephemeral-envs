@@ -8,13 +8,10 @@ jobs:
   delete-env:
     runs-on: arc-runner-set
     permissions:
-      contents: write
+      contents: read
       pull-requests: write
       issues: write
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
       - name: Extract branch info
         id: branch
         run: |
@@ -33,16 +30,12 @@ jobs:
           fi
           echo "tenant=$TENANT" >> "$GITHUB_OUTPUT"
 
-      - name: Delete ephemeral environment
+      - name: Delete EphemeralEnvironment CR
         run: |
-          ENV_FILE="manifests/environments/${{ steps.tenant.outputs.tenant }}/${{ steps.branch.outputs.env_name }}.yaml"
-          if [ -f "$ENV_FILE" ]; then
-            bash scripts/delete-env.sh \
-              "${{ steps.tenant.outputs.tenant }}" \
-              "${{ steps.branch.outputs.env_name }}"
-          else
-            echo "Environment manifest not found, skipping cleanup."
-          fi
+          kubectl delete ephemeralenvironment \
+            --namespace="tenant-${{ steps.tenant.outputs.tenant }}" \
+            --ignore-not-found \
+            "${{ steps.branch.outputs.env_name }}"
 
       - name: Comment PR with cleanup info
         uses: actions/github-script@v7
@@ -54,6 +47,6 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               body: `## Ephemeral Environment Removed\n\n` +
-                    `Environment \`${envName}\` has been cleaned up.\n` +
-                    `ArgoCD will prune the vcluster resources.`
+                    `\`${envName}\` has been deleted. The controller's finalizer will ` +
+                    `tear down the vcluster Argo Application.`
             });
