@@ -1,7 +1,6 @@
 package cleanup
 
 import (
-	"context"
 	"os/exec"
 )
 

@@ -19,7 +19,7 @@ spec:
       serviceAccountName: cleanup-controller
       containers:
         - name: controller
-          image: ghcr.io/dusttostars/vcluster-ephemeral-envs/controller:latest
+          image: localhost:32000/controller:latest
           args:
             - --repo-path=/repo
             - --interval=60s
